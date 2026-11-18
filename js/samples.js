@@ -1,5 +1,5 @@
 // Two small sample games for trying the system out.
-const times = { choice: 20, letters: 30, order: 60, unscramble: 60 };
+const times = { choice: 20, letters: 30, order: 60, unscramble: 40 };
 
 export const SAMPLES = [
   {

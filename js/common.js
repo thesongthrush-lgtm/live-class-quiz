@@ -19,13 +19,12 @@ export const TEAM_NAMES = [
 //  choice  – tap a number (2–4 options)
 //  letters – tap letters on the on-screen keypad (1–3 words)
 //  order   – tap numbered words in the right order
-export const DEFAULT_TIMES = { choice: 20, letters: 30, order: 60 };
-const UNSCRAMBLE_TYPES = new Set(["letter_unscramble", "sentence_unscramble"]);
-
+export const DEFAULT_TIMES = { choice: 20, letters: 30, order: 60, unscramble: 40 };
+// Letter unscrambles get their own limit; word-order (sentence) unscrambles use the "order" limit.
 export function timeFor(q, settings) {
   if (q.time) return q.time;
   const t = Object.assign({}, DEFAULT_TIMES, settings && settings.times);
-  if (UNSCRAMBLE_TYPES.has(q.qtype)) return t.unscramble || 60;
+  if (q.qtype === "letter_unscramble") return t.unscramble || 40;
   return t[q.format] || 20;
 }
 

@@ -127,3 +127,34 @@ export function makeBots(hub, count, mix, oracle) {
   return skills.map((sk, i) => new Bot(hub, "npc" + (i + 1), sk, oracle));
 }
 export { normalise };
+
+// ---- Hybrid: a real Firebase game that NPCs also play in -------------------
+// Real phones talk to Firebase; NPCs (and the on-screen phone preview) stay on this
+// computer. The host screen sees one merged set of players and answers.
+export function hybridHost(live, hub) {
+  const sim = hub.hostApi();
+  hub.now = () => live.now();               // bots and timers share Firebase's clock
+  const local = uid => uid === "you" || /^npc\d+$/.test(uid);
+  const both = (subA, subB, merge) => fn => {
+    let a = {}, b = {};
+    const u1 = subA(v => { a = v || {}; fn(merge(a, b)); });
+    const u2 = subB(v => { b = v || {}; fn(merge(a, b)); });
+    return () => { u1 && u1(); u2 && u2(); };
+  };
+  const flat = (a, b) => Object.assign({}, a, b);
+  const deep = (a, b) => { const o = {}; for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) o[k] = Object.assign({}, a[k], b[k]); return o; };
+  return {
+    live: false, hybrid: true,
+    now: () => live.now(),
+    async createGame(c) { await live.createGame(c); await sim.createGame(c); },
+    codeFree: c => live.codeFree(c),
+    onPlayers: both(fn => live.onPlayers(fn), fn => sim.onPlayers(fn), flat),
+    onAnswers: (q, fn) => both(f => live.onAnswers(q, f), f => sim.onAnswers(q, f), flat)(fn),
+    onReqs: (q, fn) => both(f => live.onReqs(q, f), f => sim.onReqs(q, f), flat)(fn),
+    onFlags: both(fn => live.onFlags(fn), fn => sim.onFlags(fn), deep),
+    setState: s => Promise.all([live.setState(s), sim.setState(s)]),
+    setFeedback: (uid, p) => (local(uid) ? sim : live).setFeedback(uid, p),
+    updatePlayer: (uid, p) => (local(uid) ? sim : live).updatePlayer(uid, p),
+    destroy: () => Promise.all([live.destroy().catch(() => {}), sim.destroy()]),
+  };
+}

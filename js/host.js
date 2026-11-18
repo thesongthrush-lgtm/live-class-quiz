@@ -3,7 +3,9 @@ import {
   el, fmt, clean, timeFor, qtypeLabel, prepareQuestion, isCorrect, answerText, displayValue, normalise,
   POWERUPS, TEAM_NAMES, makeCode, pick, shuffle, decodeGame, validateGame, storageGet, storageSet,
 } from "./common.js";
-import { SimHub, makeBots } from "./net-sim.js";
+import { SimHub, makeBots, hybridHost } from "./net-sim.js";
+import { playMusic, stopMusic, setIntensity, duckMusic, sfx, audioPrefs, setPref, unlock } from "./audio.js";
+import { confetti, confettiRain } from "./fx.js";
 import { mountPlayer } from "./player.js";
 import { SAMPLES } from "./samples.js";
 
@@ -43,7 +45,7 @@ function saveGame(g) {
 }
 
 function renderSetup() {
-  stopTick();
+  stopTick(); stopMusic();
   app.className = "host setup";
   app.textContent = "";
   const games = savedGames();
@@ -85,16 +87,17 @@ function renderSetup() {
   const npcN = el("input", { type: "number", min: 1, max: 20, value: 12 });
   const npcMix = el("select", null, ...[["mixed", "Mixed abilities"], ["weak", "All weaker"], ["average", "All average"], ["strong", "All stronger"]].map(([v, t]) => el("option", { value: v }, t)));
   const along = el("input", { type: "checkbox", checked: true });
+  const phones = el("input", { type: "checkbox", checked: !!CONFIG, disabled: !CONFIG });
 
   const settings = () => ({ teams: Number(teamSel.value), speed: speed.checked, powerups: pups.checked });
 
   const liveBtn = el("button", { class: "btn-primary big", disabled: !pending || !CONFIG, text: "▶ Start live game", onclick: () => startSession({ live: true, settings: settings() }) });
-  const testBtn = el("button", { class: "btn-ghost big", disabled: !pending, text: "🤖 Test with NPCs", onclick: () => startSession({ live: false, settings: settings(), npc: { n: Math.max(1, Math.min(20, Number(npcN.value) || 12)), mix: npcMix.value, along: along.checked } }) });
+  const testBtn = el("button", { class: "btn-ghost big", disabled: !pending, text: "🤖 Test with NPCs", onclick: () => startSession({ live: false, settings: settings(), npc: { n: Math.max(1, Math.min(20, Number(npcN.value) || 12)), mix: npcMix.value, along: along.checked, phones: phones.checked } }) });
 
   const results = storageGet("lq.results", []);
 
   app.append(
-    el("header", { class: "topbar" }, el("h1", null, "🎯 Live Class Quiz"), el("span", { class: "muted small" }, CONFIG ? "Live games ready" : "Test mode only: live games not connected yet")),
+    el("header", { class: "topbar" }, el("h1", null, "🎯 Live Class Quiz"), el("div", { class: "row" }, el("span", { class: "muted small" }, CONFIG ? "Live games ready" : "Test mode only: live games not connected yet"), soundControls())),
     el("main", { class: "setup-grid" },
       el("section", { class: "panel" }, el("h2", null, "1 · Choose a game"), chosen, list,
         el("div", { class: "row wrap" }, el("button", { class: "btn-ghost sm", text: "📂 Load game file", onclick: () => fileIn.click() }),
@@ -107,6 +110,7 @@ function renderSetup() {
         el("hr"),
         el("h3", null, "Test mode"),
         field("Number of NPCs", npcN), field("NPC ability", npcMix), field("Play along on a phone preview", along),
+        field("Let real phones join too (shows a QR code)", phones),
         testBtn),
       session && session.live && Date.now() - session.savedAt < 4 * 3600e3 ? el("section", { class: "panel" }, el("h2", null, "Unfinished game"),
         el("p", null, `Game ${session.code} · ${session.title} · question ${Math.max(0, session.qi + 1)} of ${session.total}`),
@@ -137,8 +141,18 @@ async function startSession({ live, settings, npc }) {
     } catch (e) { G = null; return toast("Couldn't start the live game: " + (e && e.message)); }
   } else {
     const hub = new SimHub();
-    G.hub = hub; G.net = hub.hostApi(); G.code = "TEST";
-    await G.net.createGame("TEST");
+    G.hub = hub;
+    if (CONFIG && npc.phones) {
+      // Real phones join through Firebase; NPCs stay on this computer.
+      try {
+        const { hostNet } = await import("./net-firebase.js");
+        const live = await hostNet(CONFIG);
+        let code; for (let i = 0; i < 6; i++) { code = makeCode(); if (await live.codeFree(code)) break; }
+        G.net = hybridHost(live, hub); G.code = code; G.joinable = true;
+        await G.net.createGame(code);
+      } catch (e) { toast("Phones can't join right now, so this test uses NPCs only."); G.joinable = false; }
+    }
+    if (!G.joinable) { G.net = hub.hostApi(); G.code = "TEST"; await G.net.createGame("TEST"); }
     G.bots = makeBots(hub, npc.n, npc.mix, qKey => G.qs[Number(qKey.slice(1))]);
     G.bots.forEach((b, i) => setTimeout(() => b.join(), 400 + i * (250 + Math.random() * 350)));
     G.along = npc.along;
@@ -180,6 +194,7 @@ function wire() {
         G.players[uid] = { name: clean(p.name, 16) || "Player", emoji: clean(p.emoji, 8) || "🙂", team: null, kicked: !!p.kicked, joinedAt: Date.now(), joinedAtQ: Math.max(0, G.qi) };
         if (G.settings.teams) assignTeam(uid);
         changed = true;
+        if (G.phase === "lobby") sfx.pop();
       } else if (G.phase === "lobby" && !known.kicked) {
         const n = clean(p.name, 16) || known.name, e = clean(p.emoji, 8) || known.emoji;
         if (n !== known.name || e !== known.emoji) { known.name = n; known.emoji = e; changed = true; }
@@ -215,7 +230,7 @@ function publishState() {
     if (q.format === "choice") s.nOpts = q._options.length;
     if (q.format === "order") s.nWords = q._words.length;
   }
-  if (G.phase === "final") s.showResults = G.finalStage >= 4;
+  if (G.phase === "final") s.showResults = G.finalStage >= summaryStage();
   G.net.setState(s).catch(e => console.warn(e));
   persist();
 }
@@ -234,7 +249,7 @@ function startQuestion(i) {
     if (!G.cur || G.cur.qKey !== qKey) return;
     for (const [uid, a] of Object.entries(obj)) {
       if (!G.players[uid] || G.players[uid].kicked) continue;
-      if (!G.cur.answers[uid]) { G.cur.answers[uid] = a; G.net.setFeedback(uid, { answered: qKey }).catch(() => {}); }
+      if (!G.cur.answers[uid]) { G.cur.answers[uid] = a; G.net.setFeedback(uid, { answered: qKey }).catch(() => {}); if (G.phase === "question") sfx.blip(); }
     }
     if (G.phase === "question") {
       publishState(); renderLive();
@@ -249,6 +264,8 @@ function startQuestion(i) {
       G.net.setFeedback(uid, { pu: null, hint: Object.assign({ qKey }, makeHint(q)) }).catch(() => {});
     }
   });
+  G.lastTick = null; setIntensity(0); duckMusic(false);
+  sfx.start(); playMusic("question");
   publishState(); render();
 }
 
@@ -266,12 +283,14 @@ function togglePause() {
   const now = G.net.now();
   if (!G.paused) { G.paused = true; G.remaining = Math.max(0, G.deadline - now); G.pauseStart = now; }
   else { G.paused = false; G.deadline = now + G.remaining; G.cur.pausedMs += now - G.pauseStart; }
+  sfx.pause(); duckMusic(G.paused);
   publishState(); render();
 }
 function addTime() { if (G.phase !== "question") return; if (G.paused) G.remaining += 10000; else G.deadline += 10000; G.duration += 10; publishState(); render(); }
 function skipQuestion() {
   if (G.phase !== "question") return;
   G.cur.voided = true; G.results.push(G.cur); G.cur = null;
+  sfx.whoosh();
   if (G.qi + 1 < G.qs.length) startQuestion(G.qi + 1); else goFinal();
 }
 
@@ -279,6 +298,9 @@ function closeQuestion() {
   if (!G || !G.cur || G.phase !== "question") return;
   G.phase = "reveal"; G.paused = false;
   const res = G.cur;
+  const timedOut = Object.keys(res.answers).filter(u => G.players[u] && !G.players[u].kicked).length < active().length;
+  stopMusic(0.25); duckMusic(false);
+  if (timedOut) { sfx.buzzer(); setTimeout(() => sfx.reveal(), 500); } else sfx.reveal();
   // power-ups used on this question (only if they held it when the question began)
   for (const [uid, a] of Object.entries(res.answers)) {
     if (a && a.pu && res.puAtStart[uid] === a.pu && G.inventory[uid] === a.pu) { res.usedPu[uid] = a.pu; delete G.inventory[uid]; G.net.setFeedback(uid, { pu: null }).catch(() => {}); }
@@ -289,6 +311,8 @@ function closeQuestion() {
   // half-way snapshot for the "comeback" award
   if (!G.halfRanks && G.qi + 1 >= Math.ceil(G.qs.length / 2)) G.halfRanks = rankMap();
   if (G.settings.powerups && (G.qi + 1) % 3 === 0 && G.qi < G.qs.length - 1) dealPowerups(res);
+  if (res.dealt) setTimeout(() => sfx.sparkle(), 1100);
+  setTimeout(() => { if (G && G.phase === "reveal") { duckMusic(true); playMusic("lobby"); } }, 2200);
   publishState(); render();
 }
 
@@ -384,10 +408,17 @@ function toggleAccept(norm, original) {
 // ============================================================ final
 function goFinal() {
   if (G.unsubA) G.unsubA(); if (G.unsubR) G.unsubR();
-  G.phase = "final"; G.finalStage = 0; G.cur = null;
+  G.phase = "final"; G.finalStage = 0; G.cur = null; G.revealing = false;
   recompute();
   G.awards = computeAwards();
+  stopMusic(0.8); sfx.whoosh();
   publishState(); render();
+}
+const summaryStage = () => 4 + (G.awards ? G.awards.length : 0);
+
+function podiumData() {
+  if (G.settings.teams) return teamStandings().slice(0, 3).map(t => ({ label: t.name, sub: `${fmt(t.score)} average`, color: t.color, team: true }));
+  return active().sort((a, b) => b[1].score - a[1].score).slice(0, 3).map(([, p]) => ({ label: `${p.emoji} ${p.name}`, sub: `${fmt(p.score)} points` }));
 }
 
 function teamStandings() {
@@ -455,9 +486,35 @@ function sendFinalFeedback() {
   }
 }
 
+// Stages: 0 intro · 1 3rd place · 2 2nd place · 3 winner · 4… one award each · summary.
 function advanceFinal() {
-  G.finalStage++;
-  if (G.finalStage === 4) { sendFinalFeedback(); saveResults(); }
+  if (!G || G.revealing) return;
+  const next = G.finalStage + 1;
+  if (next <= 3) {
+    const idx = 3 - next;                      // podium index: 2 = 3rd place, 0 = winner
+    const pod = podiumData();
+    if (!pod[idx]) { G.finalStage = next; return advanceFinal(); }
+    G.revealing = next; render();
+    const dur = next === 3 ? 3.4 : 2.3;
+    sfx.drumroll(dur);
+    setTimeout(() => {
+      if (!G || G.phase !== "final") return;
+      G.revealing = false; G.finalStage = next; render();
+      sfx.cymbal();
+      if (next === 3) {
+        sfx.fanfare(true); sfx.applause(5);
+        confetti({ x: 0.5, y: 0.45, power: 240 });
+        setTimeout(() => confetti({ x: 0.12, y: 0.85, power: 120 }), 250);
+        setTimeout(() => confetti({ x: 0.88, y: 0.85, power: 120 }), 450);
+        confettiRain(5);
+        setTimeout(() => { if (G && G.phase === "final") playMusic("victory"); }, 3800);
+      } else { sfx.fanfare(false); confetti({ x: [0.5, 0.28, 0.72][idx], y: 0.55, power: 90 }); }
+    }, dur * 1000);
+    return;
+  }
+  G.finalStage = next;
+  if (next < summaryStage()) { sfx.award(); confetti({ x: 0.5, y: 0.35, power: 70, spread: 0.7 }); }
+  else { sendFinalFeedback(); saveResults(); sfx.fanfare(false); confettiRain(2.5); playMusic("victory"); }
   publishState(); render();
 }
 
@@ -496,7 +553,7 @@ function toCSV(b) {
 }
 
 function renderBreakdown(b) {
-  stopTick();
+  stopTick(); stopMusic();
   app.className = "host breakdown"; app.textContent = "";
   const csv = toCSV(b);
   app.append(
@@ -520,7 +577,7 @@ function table(head, rows) {
 
 // ============================================================ rendering
 function joinUrl() {
-  if (!G || !G.live) return "(test mode: no join link)";
+  if (!G || !(G.live || G.joinable)) return "(test mode: no join link)";
   return location.href.split("#")[0].replace(/host\.html.*$/, "") + "?g=" + G.code;
 }
 
@@ -529,7 +586,8 @@ function topbar() {
   return el("header", { class: "topbar" },
     el("h1", null, "🎯 " + G.title),
     el("div", { class: "row" },
-      el("span", { class: "codepill" }, G.live ? "Code " : "", el("b", null, G.code)),
+      el("span", { class: "codepill" }, G.live || G.joinable ? "Code " : "", el("b", null, G.code)), G.joinable ? el("span", { class: "testpill" }, "🤖 Test mode") : null,
+      soundControls(),
       el("span", { class: "muted" }, `👥 ${n}`),
       G.phase !== "final" ? el("button", { class: "btn-ghost sm", text: "📱 QR code", onclick: showQR }) : null,
       el("button", { class: "btn-ghost sm", text: "✕ End", onclick: () => confirmBox("End this game now?" + (G.phase !== "final" ? " The results so far will be shown." : ""), "End game", endGame) })));
@@ -542,7 +600,7 @@ function render() {
   app.textContent = "";
   const main = el("main", { class: "stage" });
   app.append(topbar(), main);
-  if (G.phase === "lobby") main.append(lobbyView());
+  if (G.phase === "lobby") { main.append(lobbyView()); duckMusic(false); playMusic("lobby"); }
   else if (G.phase === "question") main.append(questionView());
   else if (G.phase === "reveal") main.append(revealView());
   else if (G.phase === "final") main.append(finalView());
@@ -562,7 +620,7 @@ function renderLive() { // cheap update of counters during a question
 function lobbyView() {
   const ps = active();
   const qr = el("div", { class: "qr" });
-  if (G.live) makeQR(qr, joinUrl(), 300); else qr.append(el("div", { class: "qr-ph" }, "🤖", el("small", null, "Test mode: NPCs join by themselves")));
+  if (G.live || G.joinable) makeQR(qr, joinUrl(), 300); else qr.append(el("div", { class: "qr-ph" }, "🤖", el("small", null, "Test mode: NPCs join by themselves")));
   const card = ([uid, p]) => el("button", { class: "pchip", style: G.settings.teams ? { background: TEAM_NAMES[p.team].color } : null, onclick: () => editPlayer(uid) }, `${p.emoji} ${p.name}`);
   let roster;
   if (G.settings.teams) {
@@ -570,7 +628,7 @@ function lobbyView() {
       el("h3", { style: { background: t.color } }, t.name), ...ps.filter(([, p]) => p.team === i).map(card))));
   } else roster = el("div", { class: "pgrid" }, ...ps.map(card));
   return el("div", { class: "lobby" },
-    el("div", { class: "joinbox" }, el("h2", null, "Scan to join"), qr, G.live ? el("p", { class: "joinurl" }, joinUrl()) : null, G.live ? el("p", { class: "bigcode" }, G.code) : null),
+    el("div", { class: "joinbox" }, el("h2", null, "Scan to join"), qr, G.live || G.joinable ? el("p", { class: "joinurl" }, joinUrl()) : null, G.live || G.joinable ? el("p", { class: "bigcode" }, G.code) : null),
     el("div", { class: "rosterbox" },
       el("h2", null, `Players (${ps.length})`), ps.length ? roster : el("p", { class: "muted" }, "Waiting for players…"),
       el("p", { class: "muted small" }, "Tap a player to rename or remove them."),
@@ -641,28 +699,56 @@ function revealView() {
 }
 
 function finalView() {
-  const st = G.finalStage;
-  const teams = G.settings.teams ? teamStandings() : null;
-  const ranked = active().sort((a, b) => b[1].score - a[1].score);
-  const podium = teams ? teams.slice(0, 3).map(t => ({ label: t.name, sub: `${fmt(t.score)} average · ${t.members.length} players`, color: t.color }))
-                       : ranked.slice(0, 3).map(([, p]) => ({ label: `${p.emoji} ${p.name}`, sub: `${fmt(p.score)} points` }));
-  const places = [1, 0, 2].map(i => {
-    const d = podium[i]; const shownAt = 3 - i; // 3rd at stage 1, 2nd at stage 2, 1st at stage 3
-    return el("div", { class: "place p" + (i + 1) + (d && st >= shownAt ? " shown" : "") },
-      d && st >= shownAt ? el("div", { class: "who", style: d.color ? { background: d.color } : null }, el("b", null, d.label), el("small", null, d.sub)) : el("div", { class: "who empty" }, "?"),
-      el("div", { class: "block" }, ["🥇", "🥈", "🥉"][i]));
-  });
-  const labels = ["Reveal 3rd place", "Reveal 2nd place", "Reveal the winner", "Show the awards", null];
+  const st = G.finalStage, sum = summaryStage(), pod = podiumData();
   const name = uid => { const p = G.players[uid]; return p ? `${p.emoji} ${p.name}` : "?"; };
-  return el("div", { class: "fview" },
-    el("h2", { class: "ftitle" }, st >= 3 ? "🎉 Congratulations!" : "🏁 Game over!"),
-    el("div", { class: "podium" }, ...places),
-    st >= 4 ? el("div", { class: "awards" }, ...G.awards.map(a => el("div", { class: "award" }, el("div", { class: "aicon" }, a.icon), el("b", null, a.title), el("div", null, a.uids.map(name).join(", ")), el("small", { class: "muted" }, a.detail)))) : null,
+
+  // One award at a time, big enough to read from the back of the room.
+  if (st >= 4 && st < sum) {
+    const a = G.awards[st - 4];
+    return el("div", { class: "fview" },
+      el("div", { class: "award-count" }, `Award ${st - 3} of ${G.awards.length}`),
+      el("div", { class: "award-spot", key: st }, el("div", { class: "aicon" }, a.icon), el("div", { class: "atitle" }, a.title),
+        el("div", { class: "anames" }, a.uids.map(name).join("  &  ")), el("div", { class: "adetail" }, a.detail)),
+      el("div", { class: "controls" }, el("button", { class: "btn-primary big", text: st + 1 < sum ? "Next award →" : "See all the results 🎉", onclick: advanceFinal })));
+  }
+
+  const places = [1, 0, 2].map(i => {
+    const d = pod[i], shownAt = 3 - i;          // 3rd at stage 1, 2nd at stage 2, winner at stage 3
+    const shown = d && st >= shownAt, rolling = G.revealing === shownAt;
+    return el("div", { class: `place p${i + 1}${shown ? " shown" : ""}${rolling ? " rolling" : ""}${shown && i === 0 ? " champ" : ""}${!d ? " none" : ""}` },
+      shown ? el("div", { class: "who", style: d.color ? { background: d.color } : null }, i === 0 ? el("div", { class: "crown" }, "👑") : null, el("b", null, d.label), el("small", null, d.sub))
+            : el("div", { class: "who empty" }, d ? (rolling ? "🥁" : "?") : ""),
+      el("div", { class: "block" }, el("span", { class: "medal" }, ["🥇", "🥈", "🥉"][i]), el("span", { class: "placeno" }, ["1st", "2nd", "3rd"][i])));
+  });
+
+  let title, subtitle = null;
+  if (st === 0 && !G.revealing) {
+    const correct = active().reduce((n, [, p]) => n + p.correct, 0);
+    title = "🏁 Game over!";
+    subtitle = `${active().length} players · ${G.results.filter(r => !r.voided).length} questions · ${fmt(correct)} correct answers`;
+  } else if (st < 3) title = G.revealing ? "🥁 And in " + ["", "3rd", "2nd", "1st"][G.revealing] + " place…" : "The results are in…";
+  else title = pod[0] ? `🏆 ${pod[0].label} ${pod[0].team ? "win" : "wins"}!` : "🎉 Well done, everyone!";
+
+  const labels = ["🥁 Reveal 3rd place", "🥁 Reveal 2nd place", "🥁 Reveal the winner", G.awards.length ? "🏅 On to the awards" : "See all the results 🎉"];
+  const done = st >= sum;
+  return el("div", { class: "fview" + (done ? " summary" : "") },
+    el("h2", { class: "ftitle" + (st >= 3 && !done ? " glow" : "") }, title),
+    subtitle ? el("p", { class: "fsub" }, subtitle) : null,
+    el("div", { class: "podium" + (done ? " small" : "") }, ...places),
     el("div", { class: "controls" },
-      labels[st] ? el("button", { class: "btn-primary big", text: labels[st], onclick: advanceFinal }) : null,
-      st >= 4 ? el("button", { class: "btn-ghost", text: "📊 Breakdown", onclick: () => renderBreakdown(buildBreakdown()) }) : null,
-      st >= 4 ? el("button", { class: "btn-ghost", text: "🔁 Play again", onclick: () => { const g = G.game; endGame(true); pending = g; renderSetup(); } }) : null,
-      st >= 4 ? el("button", { class: "btn-ghost", text: "Close game for students", onclick: () => confirmBox("Close the game? Phones will show “The game has ended”. Your breakdown stays on this computer.", "Close game", () => endGame()) }) : null));
+      !done ? el("button", { class: "btn-primary big", disabled: !!G.revealing, text: G.revealing ? "🥁 …" : labels[Math.min(st, 3)], onclick: advanceFinal }) : null,
+      done ? el("button", { class: "btn-ghost", text: "📊 Breakdown", onclick: () => renderBreakdown(buildBreakdown()) }) : null,
+      done ? el("button", { class: "btn-ghost", text: "🔁 Play again", onclick: () => { const g = G.game; endGame(true); pending = g; renderSetup(); } }) : null,
+      done ? el("button", { class: "btn-ghost", text: "Close game for students", onclick: () => confirmBox("Close the game? Phones will show “The game has ended”. Your breakdown stays on this computer.", "Close game", () => endGame()) }) : null),
+    done && G.awards.length ? el("div", { class: "awards" }, ...G.awards.map(a => el("div", { class: "award" }, el("div", { class: "aicon" }, a.icon), el("b", null, a.title), el("div", { class: "anm" }, a.uids.map(name).join(", ")), el("small", null, a.detail)))) : null);
+}
+
+function soundControls() {
+  const pr = audioPrefs();
+  const mus = el("button", { class: "btn-ghost sm snd" + (pr.music ? "" : " off"), title: "Music on/off", text: pr.music ? "🎵 Music" : "🎵 Off", onclick: () => { unlock(); const v = !audioPrefs().music; setPref("music", v); mus.textContent = v ? "🎵 Music" : "🎵 Off"; mus.classList.toggle("off", !v); } });
+  const fx = el("button", { class: "btn-ghost sm snd" + (pr.sfx ? "" : " off"), title: "Sound effects on/off", text: pr.sfx ? "🔊 Sounds" : "🔇 Off", onclick: () => { unlock(); const v = !audioPrefs().sfx; setPref("sfx", v); fx.textContent = v ? "🔊 Sounds" : "🔇 Off"; fx.classList.toggle("off", !v); if (v) sfx.blip(); } });
+  const vol = el("input", { type: "range", min: 0, max: 1, step: 0.05, value: pr.vol, class: "vol", title: "Volume", oninput: e => { unlock(); setPref("vol", Number(e.target.value)); } });
+  return el("span", { class: "row sndrow" }, mus, fx, vol);
 }
 
 // ============================================================ dialogs
@@ -683,8 +769,8 @@ function editPlayer(uid) {
 
 function showQR() {
   const box = el("div", { class: "qr big" });
-  if (G.live) makeQR(box, joinUrl(), 420); else box.append(el("div", { class: "qr-ph" }, "🤖", el("small", null, "Test mode")));
-  modal(el("div", { class: "center" }, el("h2", null, "Scan to join"), box, G.live ? el("p", { class: "bigcode" }, G.code) : null, G.live ? el("p", { class: "joinurl" }, joinUrl()) : null,
+  if (G.live || G.joinable) makeQR(box, joinUrl(), 420); else box.append(el("div", { class: "qr-ph" }, "🤖", el("small", null, "Test mode")));
+  modal(el("div", { class: "center" }, el("h2", null, "Scan to join"), box, G.live || G.joinable ? el("p", { class: "bigcode" }, G.code) : null, G.live || G.joinable ? el("p", { class: "joinurl" }, joinUrl()) : null,
     el("button", { class: "btn-primary", text: "Close", onclick: closeModal })), true);
 }
 
@@ -714,7 +800,7 @@ function endGame(silent) {
     if (G.phase === "question") closeQuestion();
     goFinal(); return;
   }
-  stopTick();
+  stopTick(); stopMusic(0.3);
   if (G.unsubA) G.unsubA(); if (G.unsubR) G.unsubR();
   G.net.destroy().catch(() => {});
   if (G.bots) G.bots.forEach(b => clearTimeout(b.timer));
@@ -733,6 +819,11 @@ function startTick() {
     view._bar.firstChild.style.width = Math.min(100, left / (G.duration * 1000) * 100) + "%";
     view._secs.textContent = Math.ceil(Math.min(left, G.duration * 1000) / 1000) + " s";
     view._bar.classList.toggle("low", left < 5000);
+    const secs = Math.ceil(left / 1000);
+    if (!G.paused) {
+      if (secs <= 10) setIntensity(1);
+      if (secs <= 5 && secs > 0 && secs !== G.lastTick) { G.lastTick = secs; sfx.tick(secs === 1); }
+    }
     if (!G.paused && left <= 0) closeQuestion();
   }, 150);
 }
