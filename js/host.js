@@ -2,12 +2,12 @@
 import {
   el, fmt, clean, timeFor, qtypeLabel, prepareQuestion, isCorrect, answerText, displayValue, normalise,
   POWERUPS, TEAM_NAMES, makeCode, pick, shuffle, decodeGame, validateGame, storageGet, storageSet,
-} from "./common.js?v=20261118221325";
-import { SimHub, makeBots, hybridHost } from "./net-sim.js?v=20261118221325";
-import { playMusic, stopMusic, setIntensity, duckMusic, sfx, audioPrefs, setPref, unlock } from "./audio.js?v=20261118221325";
-import { confetti, confettiRain } from "./fx.js?v=20261118221325";
-import { mountPlayer } from "./player.js?v=20261118221325";
-import { SAMPLES } from "./samples.js?v=20261118221325";
+} from "./common.js?v=20261118221640";
+import { SimHub, makeBots, hybridHost } from "./net-sim.js?v=20261118221640";
+import { playMusic, stopMusic, setIntensity, duckMusic, sfx, audioPrefs, setPref, unlock } from "./audio.js?v=20261118221640";
+import { confetti, confettiRain } from "./fx.js?v=20261118221640";
+import { mountPlayer } from "./player.js?v=20261118221640";
+import { SAMPLES } from "./samples.js?v=20261118221640";
 
 const app = document.getElementById("app");
 const CONFIG = window.FIREBASE_CONFIG || null;
@@ -134,7 +134,7 @@ async function startSession({ live, settings, npc }) {
   };
   if (live) {
     try {
-      const { hostNet } = await import("./net-firebase.js?v=20261118221325");
+      const { hostNet } = await import("./net-firebase.js?v=20261118221640");
       G.net = await hostNet(CONFIG);
       let code; for (let i = 0; i < 6; i++) { code = makeCode(); if (await G.net.codeFree(code)) break; }
       G.code = code; await G.net.createGame(code);
@@ -145,7 +145,7 @@ async function startSession({ live, settings, npc }) {
     if (CONFIG && npc.phones) {
       // Real phones join through Firebase; NPCs stay on this computer.
       try {
-        const { hostNet } = await import("./net-firebase.js?v=20261118221325");
+        const { hostNet } = await import("./net-firebase.js?v=20261118221640");
         const live = await hostNet(CONFIG);
         let code; for (let i = 0; i < 6; i++) { code = makeCode(); if (await live.codeFree(code)) break; }
         G.net = hybridHost(live, hub); G.code = code; G.joinable = true;
@@ -164,7 +164,7 @@ async function startSession({ live, settings, npc }) {
 
 async function resumeSession(saved) {
   try {
-    const { hostNet } = await import("./net-firebase.js?v=20261118221325");
+    const { hostNet } = await import("./net-firebase.js?v=20261118221640");
     const net = await hostNet(CONFIG);
     if (!(await net.resumeGame(saved.code))) throw new Error("this game is no longer available");
     G = Object.assign(saved, { net, live: true });
@@ -725,7 +725,8 @@ function finalView() {
   if (st === 0 && !G.revealing) {
     const correct = active().reduce((n, [, p]) => n + p.correct, 0);
     title = "🏁 Game over!";
-    subtitle = `${active().length} players · ${G.results.filter(r => !r.voided).length} questions · ${fmt(correct)} correct answers`;
+    const nq = G.results.filter(r => !r.voided).length, np = active().length;
+    subtitle = `${np} player${np === 1 ? "" : "s"} · ${nq} question${nq === 1 ? "" : "s"} · ${fmt(correct)} correct answer${correct === 1 ? "" : "s"}`;
   } else if (st < 3) title = G.revealing ? "🥁 And in " + ["", "3rd", "2nd", "1st"][G.revealing] + " place…" : "The results are in…";
   else title = pod[0] ? `🏆 ${pod[0].label} ${pod[0].team ? "win" : "wins"}!` : "🎉 Well done, everyone!";
 

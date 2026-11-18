@@ -1,7 +1,7 @@
 // In-browser stand-in for Firebase, used by test mode. Same API as net-firebase.js.
 // Everything stays on this device; NPC "phones" are bots driven by the host page.
 
-import { pick, randomNick, randomEmoji, normalise, shuffle } from "./common.js?v=20261118221325";
+import { pick, randomNick, randomEmoji, normalise, shuffle } from "./common.js?v=20261118221640";
 
 export class SimHub {
   constructor() {
