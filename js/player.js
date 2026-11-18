@@ -159,9 +159,30 @@ export function mountPlayer(root, net, opts = {}) {
   document.addEventListener("visibilitychange", () => {
     if (document.hidden && state && state.phase === "question" && !locked && !flagged) { flagged = true; net.flag(state.qKey).catch(() => {}); }
   });
-  net.onSelf(s => { self = s; if (s && s.name && joined) { prof.name = s.name; } if (s && !joined && s.name) { joined = true; prof.name = s.name; prof.emoji = s.emoji || prof.emoji; } render(); });
-  net.onState(s => { state = s; render(); });
-  net.onFeedback(f => { fb = f || {}; render(); });
+  let selfKey = null;
+  net.onSelf(s => {
+    self = s;
+    if (s && s.name && joined) prof.name = s.name;
+    if (s && !joined && s.name) { joined = true; prof.name = s.name; prof.emoji = s.emoji || prof.emoji; }
+    const k = s ? [s.name, s.emoji, !!s.kicked, joined].join("|") : "none";
+    if (k === selfKey) return;
+    selfKey = k; render();
+  });
+  // Only redraw when something this phone shows has changed. The host updates its
+  // "answered" counter after every answer; redrawing on that would drop taps.
+  let stateKey = null, fbKey = null;
+  net.onState(s => {
+    state = s;
+    const k = s ? JSON.stringify(Object.assign({}, s, { answered: undefined, count: s.phase === "lobby" ? s.count : undefined })) : "none";
+    if (k === stateKey) return;
+    stateKey = k; render();
+  });
+  net.onFeedback(f => {
+    fb = f || {};
+    const k = JSON.stringify(fb);
+    if (k === fbKey) return;
+    fbKey = k; render();
+  });
   render();
   return { profile: prof };
 }
