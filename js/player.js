@@ -1,5 +1,5 @@
 // The student phone screen. Works with either transport (live or simulated).
-import { el, EMOJIS, randomNick, randomEmoji, clean, fmt, POWERUPS, storageGet, storageSet } from "./common.js";
+import { el, EMOJIS, randomNick, randomEmoji, clean, fmt, POWERUPS, storageGet, storageSet } from "./common.js?v=20261118221325";
 
 const KEY_ROWS = ["QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"];
 
