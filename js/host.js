@@ -2,12 +2,13 @@
 import {
   el, fmt, clean, timeFor, qtypeLabel, prepareQuestion, isCorrect, answerText, displayValue, normalise,
   POWERUPS, TEAM_NAMES, makeCode, pick, shuffle, decodeGame, validateGame, storageGet, storageSet,
-} from "./common.js?v=20261118221640";
-import { SimHub, makeBots, hybridHost } from "./net-sim.js?v=20261118221640";
-import { playMusic, stopMusic, setIntensity, duckMusic, sfx, audioPrefs, setPref, unlock } from "./audio.js?v=20261118221640";
-import { confetti, confettiRain } from "./fx.js?v=20261118221640";
-import { mountPlayer } from "./player.js?v=20261118221640";
-import { SAMPLES } from "./samples.js?v=20261118221640";
+} from "./common.js?v=20261119081753";
+import { SimHub, makeBots, hybridHost } from "./net-sim.js?v=20261119081753";
+import { playMusic, stopMusic, setIntensity, duckMusic, sfx, audioPrefs, setPref, unlock } from "./audio.js?v=20261119081753";
+import { confetti, confettiRain } from "./fx.js?v=20261119081753";
+import { mountPlayer } from "./player.js?v=20261119081753";
+import { THEMES, applyTheme } from "./theme.js?v=20261119081753";
+import { SAMPLES } from "./samples.js?v=20261119081753";
 
 const app = document.getElementById("app");
 const CONFIG = window.FIREBASE_CONFIG || null;
@@ -44,8 +45,12 @@ function saveGame(g) {
   return g;
 }
 
+function themePrefs() { return Object.assign({ theme: "", decor: true }, storageGet("lq.theme", {})); }
+
 function renderSetup() {
   stopTick(); stopMusic();
+  const tp = themePrefs();
+  applyTheme(tp.theme, { decor: tp.decor });
   app.className = "host setup";
   app.textContent = "";
   const games = savedGames();
@@ -89,7 +94,16 @@ function renderSetup() {
   const along = el("input", { type: "checkbox", checked: true });
   const phones = el("input", { type: "checkbox", checked: !!CONFIG, disabled: !CONFIG });
 
-  const settings = () => ({ teams: Number(teamSel.value), speed: speed.checked, powerups: pups.checked });
+  const themeSel = el("select", null, ...THEMES.map(t => el("option", { value: t.id, selected: t.id === tp.theme }, t.label)));
+  const decor = el("input", { type: "checkbox", checked: tp.decor, disabled: !tp.theme });
+  const themeChanged = () => {
+    const v = { theme: themeSel.value, decor: decor.checked };
+    decor.disabled = !v.theme;
+    storageSet("lq.theme", v); applyTheme(v.theme, { decor: v.decor });
+  };
+  themeSel.onchange = themeChanged; decor.onchange = themeChanged;
+
+  const settings = () => ({ teams: Number(teamSel.value), speed: speed.checked, powerups: pups.checked, theme: themeSel.value, decor: decor.checked });
 
   const liveBtn = el("button", { class: "btn-primary big", disabled: !pending || !CONFIG, text: "▶ Start live game", onclick: () => startSession({ live: true, settings: settings() }) });
   const testBtn = el("button", { class: "btn-ghost big", disabled: !pending, text: "🤖 Test with NPCs", onclick: () => startSession({ live: false, settings: settings(), npc: { n: Math.max(1, Math.min(20, Number(npcN.value) || 12)), mix: npcMix.value, along: along.checked, phones: phones.checked } }) });
@@ -97,7 +111,7 @@ function renderSetup() {
   const results = storageGet("lq.results", []);
 
   app.append(
-    el("header", { class: "topbar" }, el("h1", null, "🎯 Live Class Quiz"), el("div", { class: "row" }, el("span", { class: "muted small" }, CONFIG ? "Live games ready" : "Test mode only: live games not connected yet"), soundControls())),
+    el("header", { class: "topbar" }, brand(), el("div", { class: "row" }, el("span", { class: "muted small" }, CONFIG ? "Live games ready" : "Test mode only: live games not connected yet"), soundControls())),
     el("main", { class: "setup-grid" },
       el("section", { class: "panel" }, el("h2", null, "1 · Choose a game"), chosen, list,
         el("div", { class: "row wrap" }, el("button", { class: "btn-ghost sm", text: "📂 Load game file", onclick: () => fileIn.click() }),
@@ -105,6 +119,7 @@ function renderSetup() {
         pasteBox, pasteBtn, fileIn),
       el("section", { class: "panel" }, el("h2", null, "2 · How to play"),
         field("Players", teamSel), field("Speed bonus (small, capped)", speed), field("Comeback power-ups", pups),
+        field("Theme", themeSel), field("Moving decorations (petals, leaves, snow…)", decor),
         el("div", { class: "row wrap gap" }, liveBtn),
         !CONFIG ? el("p", { class: "muted small" }, "Live games switch on once Firebase is connected.") : null,
         el("hr"),
@@ -121,6 +136,7 @@ function renderSetup() {
           el("button", { class: "btn-ghost sm", text: "View breakdown", onclick: () => renderBreakdown(r) })))) : null));
 }
 
+function brand() { return el("h1", { class: "brand" }, "⚡", el("b", null, "Rapidiom")); }
 function field(label, input) { return el("label", { class: "field" }, el("span", null, label), input); }
 
 // ============================================================ session
@@ -134,7 +150,7 @@ async function startSession({ live, settings, npc }) {
   };
   if (live) {
     try {
-      const { hostNet } = await import("./net-firebase.js?v=20261118221640");
+      const { hostNet } = await import("./net-firebase.js?v=20261119081753");
       G.net = await hostNet(CONFIG);
       let code; for (let i = 0; i < 6; i++) { code = makeCode(); if (await G.net.codeFree(code)) break; }
       G.code = code; await G.net.createGame(code);
@@ -145,7 +161,7 @@ async function startSession({ live, settings, npc }) {
     if (CONFIG && npc.phones) {
       // Real phones join through Firebase; NPCs stay on this computer.
       try {
-        const { hostNet } = await import("./net-firebase.js?v=20261118221640");
+        const { hostNet } = await import("./net-firebase.js?v=20261119081753");
         const live = await hostNet(CONFIG);
         let code; for (let i = 0; i < 6; i++) { code = makeCode(); if (await live.codeFree(code)) break; }
         G.net = hybridHost(live, hub); G.code = code; G.joinable = true;
@@ -164,7 +180,7 @@ async function startSession({ live, settings, npc }) {
 
 async function resumeSession(saved) {
   try {
-    const { hostNet } = await import("./net-firebase.js?v=20261118221640");
+    const { hostNet } = await import("./net-firebase.js?v=20261119081753");
     const net = await hostNet(CONFIG);
     if (!(await net.resumeGame(saved.code))) throw new Error("this game is no longer available");
     G = Object.assign(saved, { net, live: true });
@@ -224,7 +240,7 @@ function shuffleTeams() {
 
 function publishState() {
   const q = G.qi >= 0 ? G.qs[G.qi] : null;
-  const s = { phase: G.phase, count: active().length, total: G.qs.length };
+  const s = { phase: G.phase, count: active().length, total: G.qs.length, theme: G.settings.theme || "", decor: G.settings.decor !== false };
   if (q && (G.phase === "question" || G.phase === "reveal")) {
     Object.assign(s, { qKey: "q" + G.qi, num: G.qi + 1, format: q.format, deadline: G.deadline, duration: G.duration, paused: !!G.paused, answered: G.cur ? Object.keys(G.cur.answers).length : 0 });
     if (q.format === "choice") s.nOpts = q._options.length;
@@ -584,7 +600,7 @@ function joinUrl() {
 function topbar() {
   const n = active().length;
   return el("header", { class: "topbar" },
-    el("h1", null, "🎯 " + G.title),
+    el("h1", { class: "brand" }, "⚡", el("span", null, G.title)),
     el("div", { class: "row" },
       el("span", { class: "codepill" }, G.live || G.joinable ? "Code " : "", el("b", null, G.code)), G.joinable ? el("span", { class: "testpill" }, "🤖 Test mode") : null,
       soundControls(),
@@ -596,6 +612,7 @@ function topbar() {
 function render() {
   if (!G) return renderSetup();
   app.className = "host play" + (G.hub && G.along ? " with-phone" : "");
+  applyTheme(G.settings.theme || "", { decor: G.settings.decor !== false });
   const keepPhone = app.querySelector(".phone-wrap");
   app.textContent = "";
   const main = el("main", { class: "stage" });

@@ -1,5 +1,6 @@
 // The student phone screen. Works with either transport (live or simulated).
-import { el, EMOJIS, randomNick, randomEmoji, clean, fmt, POWERUPS, storageGet, storageSet } from "./common.js?v=20261118221640";
+import { applyTheme } from "./theme.js?v=20261119081753";
+import { el, EMOJIS, randomNick, randomEmoji, clean, fmt, POWERUPS, storageGet, storageSet } from "./common.js?v=20261119081753";
 
 const KEY_ROWS = ["QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"];
 
@@ -45,7 +46,7 @@ export function mountPlayer(root, net, opts = {}) {
       catch (e) { go.disabled = false; msg.textContent = "Couldn't join: " + (e && e.message || "try again"); }
     } });
     return card(
-      el("h2", null, editing ? "Change your name" : "Join the game"),
+      el("h2", null, editing ? "Change your name" : "Join Rapidiom"),
       code && !opts.hideCode ? el("p", { class: "muted small" }, "Game code ", el("b", null, code)) : null,
       el("label", { class: "lbl" }, "Nickname"),
       el("div", { class: "row" }, name, el("button", { type: "button", class: "btn-ghost", title: "Random name", text: "🎲", onclick: () => { name.value = randomNick(); } })),
@@ -173,6 +174,7 @@ export function mountPlayer(root, net, opts = {}) {
   let stateKey = null, fbKey = null;
   net.onState(s => {
     state = s;
+    if (s && opts.ownTheme) applyTheme(s.theme || "", { decor: s.decor !== false, count: 9 });
     const k = s ? JSON.stringify(Object.assign({}, s, { answered: undefined, count: s.phase === "lobby" ? s.count : undefined })) : "none";
     if (k === stateKey) return;
     stateKey = k; render();

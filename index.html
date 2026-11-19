@@ -4,18 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <meta name="theme-color" content="#cdbff5">
-<title>Join the quiz</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎯</text></svg>">
+<title>Join Rapidiom</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800;900&display=swap">
-<link rel="stylesheet" href="css/style.css?v=20261118221640">
-<script src="config.js?v=20261118221640"></script>
+<link rel="stylesheet" href="css/style.css?v=20261119081753">
+<script src="config.js?v=20261119081753"></script>
 </head>
 <body class="phone-body">
 <div id="app"><div class="phone"><div class="ph-card"><p>Loading…</p></div></div></div>
 <script type="module">
-  import { mountPlayer } from "./js/player.js?v=20261118221640";
-  import { el } from "./js/common.js?v=20261118221640";
+  import { mountPlayer } from "./js/player.js?v=20261119081753";
+  import { el } from "./js/common.js?v=20261119081753";
   const app = document.getElementById("app");
   const params = new URLSearchParams(location.search);
   let code = (params.get("g") || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -24,19 +24,19 @@
     app.textContent = "";
     const input = el("input", { type: "text", maxlength: 6, placeholder: "Game code", autocapitalize: "characters", autocomplete: "off", style: { textTransform: "uppercase", textAlign: "center", fontSize: "1.6rem", letterSpacing: ".2em" } });
     const go = el("button", { class: "btn-primary wide", text: "Join", onclick: () => { const c = input.value.toUpperCase().replace(/[^A-Z0-9]/g, ""); if (c) location.search = "?g=" + c; } });
-    app.append(el("div", { class: "phone" }, el("div", { class: "ph-card" }, el("div", { class: "big-emoji" }, "🎯"), el("h2", null, "Join the quiz"), msg ? el("p", { class: "muted" }, msg) : null, input, go)));
+    app.append(el("div", { class: "phone" }, el("div", { class: "ph-card" }, el("h1", { class: "brand brand-hero" }, "⚡", el("b", null, "Rapidiom")), el("h2", null, "Join a game"), msg ? el("p", { class: "muted" }, msg) : null, input, go)));
   }
 
   (async () => {
     if (!window.FIREBASE_CONFIG) { app.textContent = ""; app.append(el("div", { class: "phone" }, el("div", { class: "ph-card" }, el("h2", null, "Not set up yet"), el("p", { class: "muted" }, "Live games haven't been connected yet.")))); return; }
     if (!code) return ask();
     try {
-      const { playerNet } = await import("./js/net-firebase.js?v=20261118221640");
+      const { playerNet } = await import("./js/net-firebase.js?v=20261119081753");
       const net = await playerNet(window.FIREBASE_CONFIG, code);
       if (!(await net.exists(code))) return ask(`There's no game with the code ${code}. Check the screen and try again.`);
       app.textContent = "";
       const root = el("div"); app.append(root);
-      mountPlayer(root, net, { code });
+      mountPlayer(root, net, { code, ownTheme: true });
     } catch (e) {
       ask("Couldn't connect. Check your internet connection and try again.");
       console.error(e);
