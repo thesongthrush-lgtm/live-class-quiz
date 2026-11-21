@@ -6,15 +6,38 @@ export const THEMES = [
   { id: "summer", label: "☀️ Summer" },
   { id: "autumn", label: "🍂 Autumn" },
   { id: "winter", label: "❄️ Winter" },
+  { id: "christmas", label: "🎄 Christmas", group: "Holidays" },
+  { id: "halloween", label: "🎃 Halloween", group: "Holidays" },
+  { id: "easter", label: "🐣 Easter", group: "Holidays" },
+  { id: "stpatricks", label: "☘️ St Patrick's Day", group: "Holidays" },
+  { id: "arcade", label: "👾 Retro arcade", group: "Other" },
+  { id: "ocean", label: "🐠 Ocean", group: "Other" },
+  { id: "cafe", label: "☕ Cosy café", group: "Other" },
+  { id: "travel", label: "✈️ Travel", group: "Other" },
+  { id: "jungle", label: "🦜 Jungle", group: "Other" },
+  { id: "candy", label: "🍭 Candy shop", group: "Other" },
+  { id: "contrast", label: "🔆 High contrast (no decorations)", group: "Other" },
 ];
+THEMES.slice(1, 5).forEach(t => t.group = "Seasons");
 
 const DECOR = {
   spring: ["🌸", "🌸", "🌼", "🌷", "🍃"],
   summer: ["🫧", "🫧", "☀️", "🐚", "🌊"],
   autumn: ["🍂", "🍁", "🍂", "🍁", "🌰"],
   winter: ["❄️", "❄️", "❅", "❆", "⛄"],
+  christmas: ["❄️", "⭐", "🎄", "🎁", "❄️", "🔔"],
+  halloween: ["🎃", "🦇", "👻", "🕸️", "🦇", "🍬"],
+  easter: ["🐣", "🐰", "🥚", "🌷", "🐥", "🥚"],
+  stpatricks: ["☘️", "🍀", "☘️", "🌈", "🪙"],
+  arcade: ["👾", "🕹️", "⭐", "💎", "🍒", "👾"],
+  ocean: ["🫧", "🐠", "🫧", "🐙", "🐚", "🐟"],
+  cafe: ["☕", "🥐", "📚", "🍪", "☕", "🧁"],
+  travel: ["✈️", "🗺️", "🧳", "☁️", "🌍", "📸"],
+  jungle: ["🍃", "🦜", "🦋", "🌴", "🍃", "🐒"],
+  candy: ["🍭", "🍬", "🧁", "🍩", "🍭", "🍓"],
+  contrast: [],
 };
-const BAR = { "": "#cdbff5", spring: "#a9dc9e", summer: "#7fd8d6", autumn: "#eba573", winter: "#a3c9ee" };
+const BAR = { christmas: "#d65a5f", halloween: "#e99a55", easter: "#d5c6f5", stpatricks: "#79bb7f", arcade: "#b47cf8", ocean: "#6fbcd3", cafe: "#c9a07c", travel: "#8bbbea", jungle: "#7fbb7f", candy: "#f7b3d2", contrast: "#ffd43b", "": "#cdbff5", spring: "#a9dc9e", summer: "#7fd8d6", autumn: "#eba573", winter: "#a3c9ee" };
 
 let current = null;
 
@@ -28,7 +51,7 @@ export function applyTheme(id = "", { decor = true, count = 22 } = {}) {
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.content = BAR[id];
   document.querySelector(".season-fx")?.remove();
-  if (!id || !decor) return;
+  if (!id || !decor || !DECOR[id].length) return;
   const layer = document.createElement("div");
   layer.className = "season-fx " + id;
   layer.setAttribute("aria-hidden", "true");

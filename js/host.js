@@ -2,13 +2,13 @@
 import {
   el, fmt, clean, timeFor, qtypeLabel, prepareQuestion, isCorrect, answerText, displayValue, normalise,
   POWERUPS, TEAM_NAMES, makeCode, pick, shuffle, decodeGame, validateGame, storageGet, storageSet,
-} from "./common.js?v=20261121130816";
-import { SimHub, makeBots, hybridHost } from "./net-sim.js?v=20261121130816";
-import { playMusic, stopMusic, setIntensity, duckMusic, sfx, audioPrefs, setPref, unlock } from "./audio.js?v=20261121130816";
-import { confetti, confettiRain } from "./fx.js?v=20261121130816";
-import { mountPlayer } from "./player.js?v=20261121130816";
-import { THEMES, applyTheme } from "./theme.js?v=20261121130816";
-import { SAMPLES } from "./samples.js?v=20261121130816";
+} from "./common.js?v=20261121204000";
+import { SimHub, makeBots, hybridHost } from "./net-sim.js?v=20261121204000";
+import { playMusic, stopMusic, setIntensity, duckMusic, sfx, audioPrefs, setPref, unlock } from "./audio.js?v=20261121204000";
+import { confetti, confettiRain } from "./fx.js?v=20261121204000";
+import { mountPlayer } from "./player.js?v=20261121204000";
+import { THEMES, applyTheme } from "./theme.js?v=20261121204000";
+import { SAMPLES } from "./samples.js?v=20261121204000";
 
 const app = document.getElementById("app");
 const CONFIG = window.FIREBASE_CONFIG || null;
@@ -94,7 +94,8 @@ function renderSetup() {
   const along = el("input", { type: "checkbox", checked: true });
   const phones = el("input", { type: "checkbox", checked: !!CONFIG, disabled: !CONFIG });
 
-  const themeSel = el("select", null, ...THEMES.map(t => el("option", { value: t.id, selected: t.id === tp.theme }, t.label)));
+  const opt = t => el("option", { value: t.id, selected: t.id === tp.theme }, t.label);
+  const themeSel = el("select", null, opt(THEMES[0]), ...["Seasons", "Holidays", "Other"].map(g => el("optgroup", { label: g }, ...THEMES.filter(t => t.group === g).map(opt))));
   const decor = el("input", { type: "checkbox", checked: tp.decor, disabled: !tp.theme });
   const themeChanged = () => {
     const v = { theme: themeSel.value, decor: decor.checked };
@@ -150,7 +151,7 @@ async function startSession({ live, settings, npc }) {
   };
   if (live) {
     try {
-      const { hostNet } = await import("./net-firebase.js?v=20261121130816");
+      const { hostNet } = await import("./net-firebase.js?v=20261121204000");
       G.net = await hostNet(CONFIG);
       let code; for (let i = 0; i < 6; i++) { code = makeCode(); if (await G.net.codeFree(code)) break; }
       G.code = code; await G.net.createGame(code);
@@ -161,7 +162,7 @@ async function startSession({ live, settings, npc }) {
     if (CONFIG && npc.phones) {
       // Real phones join through Firebase; NPCs stay on this computer.
       try {
-        const { hostNet } = await import("./net-firebase.js?v=20261121130816");
+        const { hostNet } = await import("./net-firebase.js?v=20261121204000");
         const live = await hostNet(CONFIG);
         let code; for (let i = 0; i < 6; i++) { code = makeCode(); if (await live.codeFree(code)) break; }
         G.net = hybridHost(live, hub); G.code = code; G.joinable = true;
@@ -180,7 +181,7 @@ async function startSession({ live, settings, npc }) {
 
 async function resumeSession(saved) {
   try {
-    const { hostNet } = await import("./net-firebase.js?v=20261121130816");
+    const { hostNet } = await import("./net-firebase.js?v=20261121204000");
     const net = await hostNet(CONFIG);
     if (!(await net.resumeGame(saved.code))) throw new Error("this game is no longer available");
     G = Object.assign(saved, { net, live: true });
@@ -244,7 +245,7 @@ function publishState() {
   if (q && (G.phase === "question" || G.phase === "reveal")) {
     Object.assign(s, { qKey: "q" + G.qi, num: G.qi + 1, format: q.format, deadline: G.deadline, duration: G.duration, paused: !!G.paused, answered: G.cur ? Object.keys(G.cur.answers).length : 0 });
     if (q.format === "choice") s.nOpts = q._options.length;
-    if (q.format === "order") s.nWords = q._words.length;
+    if (q.format === "order") { s.nWords = q._words.length; s.words = q._words; }
   }
   if (G.phase === "final") s.showResults = G.finalStage >= summaryStage();
   G.net.setState(s).catch(e => console.warn(e));
@@ -311,7 +312,17 @@ function makeHint(q) {
     return { remove: wrong.slice(0, Math.max(0, q._options.length - 2)) };
   }
   if (q.format === "letters") { const a = q.answers[0]; return { first: a[0].toUpperCase(), len: a.replace(/\s/g, "").length }; }
-  return { firstIdx: q._words.indexOf(q.sentence[0]) + 1 };
+  return { firstWord: q.sentence[0] };
+}
+function sendHints() {
+  const res = G.cur; if (!res || res.hintsSent) return;
+  res.hintsSent = true;
+  const q = G.qs[res.idx];
+  for (const [uid, type] of Object.entries(res.puAtStart)) {
+    if (type !== "hint" || G.inventory[uid] !== "hint" || res.answers[uid]) continue;
+    res.usedPu[uid] = "hint"; delete G.inventory[uid];
+    G.net.setFeedback(uid, { pu: null, hint: Object.assign({ qKey: res.qKey }, makeHint(q)) }).catch(() => {});
+  }
 }
 
 function togglePause() {
@@ -338,8 +349,13 @@ function closeQuestion() {
   stopMusic(0.25); duckMusic(false);
   if (timedOut) { sfx.buzzer(); setTimeout(() => sfx.reveal(), 500); } else sfx.reveal();
   // power-ups used on this question (only if they held it when the question began)
-  for (const [uid, a] of Object.entries(res.answers)) {
-    if (a && a.pu && res.puAtStart[uid] === a.pu && G.inventory[uid] === a.pu) { res.usedPu[uid] = a.pu; delete G.inventory[uid]; G.net.setFeedback(uid, { pu: null }).catch(() => {}); }
+  // Power-ups apply automatically: double on a correct answer, safety net on a wrong one.
+  const q0 = G.qs[res.idx];
+  for (const [uid, type] of Object.entries(res.puAtStart)) {
+    if (G.inventory[uid] !== type || res.usedPu[uid] || type === "hint") continue;
+    const a = res.answers[uid]; if (!a) continue;
+    const ok = isCorrect(q0, a.v, res.accepted) || (q0.format === "letters" && res.accepted.includes(normalise(a.v)));
+    if ((type === "double" && ok) || (type === "safety" && !ok)) { res.usedPu[uid] = type; delete G.inventory[uid]; G.net.setFeedback(uid, { pu: null }).catch(() => {}); }
   }
   if (!G.results.includes(res)) G.results.push(res);
   recompute();
@@ -876,6 +892,7 @@ function startTick() {
       if (secs <= 10) setIntensity(1);
       if (secs <= 5 && secs > 0 && secs !== G.lastTick) { G.lastTick = secs; sfx.tick(secs === 1); }
     }
+    if (!G.paused && left <= G.duration * 500) sendHints();
     if (!G.paused && left <= 0) closeQuestion();
   }, 150);
 }

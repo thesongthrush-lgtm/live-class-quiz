@@ -1,8 +1,9 @@
 // The student phone screen. Works with either transport (live or simulated).
-import { applyTheme } from "./theme.js?v=20261121130816";
-import { el, EMOJIS, randomNick, randomEmoji, clean, fmt, POWERUPS, storageGet, storageSet } from "./common.js?v=20261121130816";
+import { applyTheme } from "./theme.js?v=20261121204000";
+import { el, EMOJIS, randomNick, randomEmoji, clean, fmt, POWERUPS, storageGet, storageSet } from "./common.js?v=20261121204000";
 
 const KEY_ROWS = ["QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"];
+const add = (t, c) => t.length < 30 ? t + c : t;
 
 export function mountPlayer(root, net, opts = {}) {
   const code = opts.code;
@@ -89,9 +90,11 @@ export function mountPlayer(root, net, opts = {}) {
     let body;
     if (state.format === "choice") {
       body = el("div", { class: "opts n" + state.nOpts });
+      if (hint && hint.remove && hint.remove.length) body = el("div", null, el("p", { class: "hint" }, `💡 ${hint.remove.length} wrong answer${hint.remove.length === 1 ? "" : "s"} removed`), body);
+      const grid = body.lastChild || body;
       for (let i = 1; i <= state.nOpts; i++) {
         const removed = hint && hint.remove && hint.remove.includes(i);
-        body.append(el("button", { class: "opt o" + i, disabled: removed, text: String(i), onclick: () => submit(i) }));
+        grid.append(el("button", { class: "opt o" + i, disabled: removed, text: String(i), onclick: () => submit(i) }));
       }
     } else if (state.format === "letters") {
       const slots = el("div", { class: "slots" }, typed || "·");
@@ -100,22 +103,22 @@ export function mountPlayer(root, net, opts = {}) {
       KEY_ROWS.forEach(r => { const row = el("div", { class: "krow" }); r.split("").forEach(L => row.append(el("button", { type: "button", text: L, onclick: () => { if (typed.length < 30) { typed += L; draw(); } } }))); kp.append(row); });
       kp.append(el("div", { class: "krow" },
         el("button", { type: "button", class: "k-wide", text: "⌫", "aria-label": "Delete", onclick: () => { typed = typed.slice(0, -1); draw(); } }),
+        el("button", { type: "button", class: "k-punct", text: "'", "aria-label": "Apostrophe", onclick: () => { if (typed) { typed = add(typed, "'"); draw(); } } }),
         el("button", { type: "button", class: "k-space", text: "space", onclick: () => { if (typed && !typed.endsWith(" ")) { typed += " "; draw(); } } }),
+        el("button", { type: "button", class: "k-punct", text: "-", "aria-label": "Hyphen", onclick: () => { if (typed && !/[ -]$/.test(typed)) { typed = add(typed, "-"); draw(); } } }),
         el("button", { type: "button", class: "k-wide k-go", text: "✓", "aria-label": "Submit", onclick: () => { if (typed.trim()) submit(typed.trim()); } })));
       body = el("div", null, hint ? el("p", { class: "hint" }, `💡 Starts with ${hint.first} · ${hint.len} letters`) : null, slots, kp);
     } else {
-      const shown = el("div", { class: "seq" }, seq.length ? seq.join(" → ") : "Tap the numbers in order");
+      const W = state.words || [];
+      const shown = el("div", { class: "seq" }, seq.length ? seq.map(i => W[i - 1] || i).join(" ") : "Tap the words in order");
       const grid = el("div", { class: "ordergrid" });
       for (let i = 1; i <= state.nWords; i++) {
-        grid.append(el("button", { class: "ord" + (seq.includes(i) ? " used" : ""), disabled: seq.includes(i), text: String(i), onclick: () => { seq.push(i); if (seq.length === state.nWords) submit(seq.slice()); else render(); } }));
+        grid.append(el("button", { class: "ord" + (seq.includes(i) ? " used" : ""), disabled: seq.includes(i), text: W[i - 1] || String(i), onclick: () => { seq.push(i); if (seq.length === state.nWords) submit(seq.slice()); else render(); } }));
       }
-      body = el("div", null, hint ? el("p", { class: "hint" }, `💡 The first word is number ${hint.firstIdx}`) : null, shown, grid,
+      body = el("div", null, hint ? el("p", { class: "hint" }, `💡 The first word is “${hint.firstWord}”`) : null, shown, grid,
         el("div", { class: "row" }, el("button", { class: "btn-ghost", text: "↶ Undo", disabled: !seq.length, onclick: () => { seq.pop(); render(); } }), el("button", { class: "btn-ghost", text: "Clear", disabled: !seq.length, onclick: () => { seq = []; render(); } })));
     }
-    const puRow = fb.pu ? el("button", { class: "pu-use" + (usePu ? " on" : ""), onclick: () => {
-      if (fb.pu === "hint") { net.request(state.qKey, "hint").catch(() => {}); usePu = true; render(); return; }
-      usePu = !usePu; render();
-    } }, `${POWERUPS[fb.pu].icon} ${usePu ? (fb.pu === "hint" ? "Hint requested" : "Using " + POWERUPS[fb.pu].name + " ✓") : "Use " + POWERUPS[fb.pu].name}`) : null;
+    const puRow = null;
     return card(head, timerBar(), puRow, body);
   }
 
@@ -124,7 +127,7 @@ export function mountPlayer(root, net, opts = {}) {
   async function submit(v) {
     if (locked) return;
     locked = true; sent.add(state.qKey);
-    const pu = usePu && fb.pu && fb.pu !== "hint" ? fb.pu : null;
+    const pu = null;
     render();
     try { await net.answer(state.qKey, v, pu); }
     catch (e) { root.append(card(el("p", { class: "muted small" }, "That answer arrived too late."))); }
@@ -142,7 +145,11 @@ export function mountPlayer(root, net, opts = {}) {
 
   function puBadge() {
     const p = POWERUPS[fb.pu];
-    return el("div", { class: "pu-badge" }, `${p.icon} ${p.name}`, el("span", { class: "muted small" }, " · " + p.desc));
+    const on = state && state.phase === "question";
+    const msg = { double: on ? "is on for this question: get it right for double points!" : "will switch on by itself next question",
+      safety: on ? "is ready: if you get this one wrong, you still get half points" : "will switch on by itself if you get one wrong",
+      hint: on ? "will pop up halfway through this question" : "will pop up by itself during the next question" }[fb.pu] || p.desc;
+    return el("div", { class: "pu-badge" + (on ? " live" : "") }, `${p.icon} ${p.name} `, el("span", { class: "small" }, msg));
   }
 
   function finalView() {

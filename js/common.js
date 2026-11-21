@@ -46,12 +46,17 @@ export function normalise(s) {
     .toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
 
+// Vocabulary answers: ignore a leading a/an/the, plus spaces, hyphens, apostrophes, case and accents.
+export function normAnswer(s) {
+  return normalise(String(s == null ? "" : s).trim().replace(/^(a|an|the)\s+/i, ""));
+}
+
 export function isCorrect(q, v, extraAccepted) {
   if (v == null) return false;
   if (q.format === "choice") return Number(v) === q._answer;
   if (q.format === "letters") {
-    const n = normalise(v);
-    return !!n && [...(q.answers || []), ...(extraAccepted || [])].some(a => normalise(a) === n);
+    const n = normAnswer(v);
+    return !!n && [...(q.answers || []), ...(extraAccepted || [])].some(a => normAnswer(a) === n || normalise(a) === n);
   }
   if (q.format === "order") {
     if (!Array.isArray(v)) return false;
@@ -110,9 +115,9 @@ export function prepareQuestion(q) {
 }
 
 export const POWERUPS = {
-  double: { icon: "✖️2", name: "Double points", desc: "Your next correct answer scores double." },
-  hint:   { icon: "💡",  name: "Hint",          desc: "Removes two wrong numbers, or shows the first letter or word." },
-  safety: { icon: "🛟",  name: "Safety net",    desc: "If your answer is wrong, you still get half points." },
+  double: { icon: "✖️2", name: "Double points", desc: "Switches on by itself: your next correct answer scores double." },
+  hint:   { icon: "💡",  name: "Hint",          desc: "Pops up by itself halfway through the next question." },
+  safety: { icon: "🛟",  name: "Safety net",    desc: "Switches on by itself the first time you get one wrong: you still get half points." },
 };
 
 const CODE_CHARS = "BCDFGHJKLMNPQRSTVWXZ23456789";

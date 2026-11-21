@@ -206,11 +206,12 @@ th{font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:var(--mut
 .krow{display:flex;gap:5px;justify-content:center}
 .krow button{flex:1;max-width:44px;padding:13px 0;font-size:1.15rem;background:var(--ghost);border-radius:10px}
 .krow .k-wide{max-width:none;flex:1.4}
+.krow .k-punct{font-size:1.5rem;font-weight:900}
 .krow .k-space{max-width:none;flex:3;font-size:.95rem}
 .krow .k-go{background:var(--mint)}
 .seq{font-size:1.4rem;font-weight:900;min-height:48px;background:var(--soft);border-radius:14px;padding:10px}
-.ordergrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
-.ord{font-size:1.8rem;font-weight:900;padding:16px 0;background:var(--sky);border-radius:16px}
+.ordergrid{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.ord{font-size:1.25rem;font-weight:900;padding:14px 16px;flex:0 1 auto;background:var(--sky);border-radius:16px}
 .ord.used{background:#eee}
 .hint{background:var(--butter);border-radius:12px;padding:8px;font-weight:800}
 .pu-use{background:var(--butter);font-size:1rem}
@@ -300,3 +301,74 @@ th{font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:var(--mut
 .hq-prompt{font-weight:800;font-size:1.1em}
 .hq-wrong{color:var(--muted)}
 .hq-none{font-size:clamp(1.3rem,2vw,1.7rem);font-weight:800}
+.pu-badge.live{background:var(--butter);outline:3px solid var(--lav-d);animation:pop .4s ease}
+.seq{line-height:1.4}
+[data-theme=christmas]{--chip:rgba(240,200,80,.7);
+  --bg:#fbf3ee; --bgimg:linear-gradient(160deg,rgba(196,40,52,.18),rgba(255,250,240,.7) 45%,rgba(40,130,80,.2));
+  --lav:rgba(206,58,64,.7); --lav-d:#a3202a; --sky:rgba(60,150,90,.7); --peach:rgba(235,180,170,.7); --butter:rgba(240,200,80,.7);
+  --o1:rgba(214,64,70,.7); --o2:rgba(54,148,92,.7); --o3:rgba(236,192,70,.7); --o4:rgba(176,210,190,.7);
+  --ghost:color-mix(in srgb,#a3202a 14%,transparent); --ghost-h:color-mix(in srgb,#a3202a 24%,transparent); --track:color-mix(in srgb,#a3202a 16%,transparent); --line:color-mix(in srgb,#a3202a 22%,transparent);
+}
+[data-theme=halloween]{--chip:rgba(170,130,210,.7);
+  --bg:#f2ecf6; --bgimg:linear-gradient(160deg,rgba(110,60,150,.35),rgba(255,236,214,.7) 50%,rgba(240,130,40,.3));
+  --lav:rgba(240,130,40,.7); --lav-d:#6a2e9c; --sky:rgba(170,130,210,.7); --peach:rgba(250,170,100,.7); --butter:rgba(236,210,90,.7);
+  --o1:rgba(240,130,40,.7); --o2:rgba(156,110,206,.7); --o3:rgba(150,200,90,.7); --o4:rgba(236,210,90,.7);
+  --ghost:color-mix(in srgb,#6a2e9c 14%,transparent); --ghost-h:color-mix(in srgb,#6a2e9c 24%,transparent); --track:color-mix(in srgb,#6a2e9c 16%,transparent); --line:color-mix(in srgb,#6a2e9c 22%,transparent);
+}
+[data-theme=easter]{--chip:rgba(255,196,214,.7);
+  --bg:#fdfbef; --bgimg:linear-gradient(160deg,rgba(255,240,160,.7),rgba(226,210,248,.7) 50%,rgba(196,240,214,.7));
+  --lav:rgba(196,176,240,.7); --lav-d:#7656b8; --sky:rgba(170,220,250,.7); --peach:rgba(255,196,214,.7); --butter:rgba(255,232,130,.7);
+  --o1:rgba(255,186,208,.7); --o2:rgba(196,176,240,.7); --o3:rgba(170,230,196,.7); --o4:rgba(255,226,120,.7);
+  --ghost:color-mix(in srgb,#7656b8 14%,transparent); --ghost-h:color-mix(in srgb,#7656b8 24%,transparent); --track:color-mix(in srgb,#7656b8 16%,transparent); --line:color-mix(in srgb,#7656b8 22%,transparent);
+}
+[data-theme=arcade]{--chip:rgba(70,220,240,.7);
+  --bg:#f3eefc; --bgimg:linear-gradient(160deg,rgba(150,90,240,.28),rgba(255,120,200,.22) 50%,rgba(60,220,240,.25));
+  --lav:rgba(180,110,250,.7); --lav-d:#7a2fd0; --sky:rgba(70,220,240,.7); --peach:rgba(255,120,200,.7); --butter:rgba(250,230,80,.7);
+  --o1:rgba(255,110,190,.7); --o2:rgba(70,210,240,.7); --o3:rgba(130,240,120,.7); --o4:rgba(250,220,70,.7);
+  --ghost:color-mix(in srgb,#7a2fd0 14%,transparent); --ghost-h:color-mix(in srgb,#7a2fd0 24%,transparent); --track:color-mix(in srgb,#7a2fd0 16%,transparent); --line:color-mix(in srgb,#7a2fd0 22%,transparent);
+}
+[data-theme=ocean]{--chip:rgba(130,210,220,.7);
+  --bg:#eef8fb; --bgimg:linear-gradient(160deg,rgba(150,220,236,.7),rgba(200,236,240,.7) 50%,rgba(90,170,210,.5));
+  --lav:rgba(70,170,200,.7); --lav-d:#1d6f8f; --sky:rgba(130,190,240,.7); --peach:rgba(255,180,160,.7); --butter:rgba(250,220,150,.7);
+  --o1:rgba(255,160,140,.7); --o2:rgba(110,180,240,.7); --o3:rgba(80,200,190,.7); --o4:rgba(250,214,120,.7);
+  --ghost:color-mix(in srgb,#1d6f8f 14%,transparent); --ghost-h:color-mix(in srgb,#1d6f8f 24%,transparent); --track:color-mix(in srgb,#1d6f8f 16%,transparent); --line:color-mix(in srgb,#1d6f8f 22%,transparent);
+}
+[data-theme=cafe]{--chip:rgba(220,196,160,.7);
+  --bg:#faf4ec; --bgimg:linear-gradient(160deg,rgba(244,228,206,.7),rgba(236,214,190,.7) 50%,rgba(222,200,176,.7));
+  --lav:rgba(190,140,100,.7); --lav-d:#7a4a2a; --sky:rgba(200,180,150,.7); --peach:rgba(230,180,150,.7); --butter:rgba(240,210,150,.7);
+  --o1:rgba(210,150,120,.7); --o2:rgba(170,190,160,.7); --o3:rgba(200,170,140,.7); --o4:rgba(240,206,140,.7);
+  --ghost:color-mix(in srgb,#7a4a2a 14%,transparent); --ghost-h:color-mix(in srgb,#7a4a2a 24%,transparent); --track:color-mix(in srgb,#7a4a2a 16%,transparent); --line:color-mix(in srgb,#7a4a2a 22%,transparent);
+}
+[data-theme=travel]{--chip:rgba(244,210,160,.7);
+  --bg:#f2f8fd; --bgimg:linear-gradient(160deg,rgba(180,220,250,.7),rgba(240,248,252,.7) 50%,rgba(244,226,190,.7));
+  --lav:rgba(110,170,230,.7); --lav-d:#2b6aa8; --sky:rgba(150,200,240,.7); --peach:rgba(244,200,150,.7); --butter:rgba(250,222,130,.7);
+  --o1:rgba(240,140,120,.7); --o2:rgba(110,170,236,.7); --o3:rgba(130,200,150,.7); --o4:rgba(244,206,120,.7);
+  --ghost:color-mix(in srgb,#2b6aa8 14%,transparent); --ghost-h:color-mix(in srgb,#2b6aa8 24%,transparent); --track:color-mix(in srgb,#2b6aa8 16%,transparent); --line:color-mix(in srgb,#2b6aa8 22%,transparent);
+}
+[data-theme=contrast]{--chip:#ffd43b;
+  --bg:#ffffff; --bgimg:none;
+  --lav:#ffd43b; --lav-d:#14213d; --sky:#cfe2ff; --peach:#ffe8cc; --butter:#ffd43b;
+  --o1:#ffc9d6; --o2:#b9d7ff; --o3:#b8ecc9; --o4:#ffe08a;
+  --ghost:color-mix(in srgb,#14213d 14%,transparent); --ghost-h:color-mix(in srgb,#14213d 24%,transparent); --track:color-mix(in srgb,#14213d 16%,transparent); --line:color-mix(in srgb,#14213d 22%,transparent);
+}
+[data-theme=jungle]{--chip:rgba(250,170,110,.7);
+  --bg:#f0f8ec; --bgimg:linear-gradient(160deg,rgba(170,220,150,.7),rgba(220,240,190,.7) 50%,rgba(120,190,130,.5));
+  --lav:rgba(90,170,90,.7); --lav-d:#2c6e2f; --sky:rgba(130,200,200,.7); --peach:rgba(250,170,110,.7); --butter:rgba(250,220,90,.7);
+  --o1:rgba(240,120,100,.7); --o2:rgba(100,180,220,.7); --o3:rgba(110,190,90,.7); --o4:rgba(250,210,80,.7);
+  --ghost:color-mix(in srgb,#2c6e2f 14%,transparent); --ghost-h:color-mix(in srgb,#2c6e2f 24%,transparent); --track:color-mix(in srgb,#2c6e2f 16%,transparent); --line:color-mix(in srgb,#2c6e2f 22%,transparent);
+}
+[data-theme=candy]{--chip:rgba(196,240,220,.7);
+  --bg:#fff3f8; --bgimg:linear-gradient(160deg,rgba(255,206,228,.7),rgba(255,245,250,.7) 50%,rgba(196,244,226,.7));
+  --lav:rgba(250,160,200,.7); --lav-d:#c0397a; --sky:rgba(180,230,250,.7); --peach:rgba(255,196,170,.7); --butter:rgba(255,236,150,.7);
+  --o1:rgba(255,150,196,.7); --o2:rgba(160,214,250,.7); --o3:rgba(160,236,206,.7); --o4:rgba(255,226,130,.7);
+  --ghost:color-mix(in srgb,#c0397a 14%,transparent); --ghost-h:color-mix(in srgb,#c0397a 24%,transparent); --track:color-mix(in srgb,#c0397a 16%,transparent); --line:color-mix(in srgb,#c0397a 22%,transparent);
+}
+[data-theme=stpatricks]{--chip:rgba(240,206,90,.7);
+  --bg:#f1f9ef; --bgimg:linear-gradient(160deg,rgba(170,226,160,.7),rgba(248,252,240,.7) 50%,rgba(240,214,120,.5));
+  --lav:rgba(80,170,90,.7); --lav-d:#1f7a35; --sky:rgba(170,220,180,.7); --peach:rgba(250,190,120,.7); --butter:rgba(240,206,90,.7);
+  --o1:rgba(90,180,100,.7); --o2:rgba(250,170,90,.7); --o3:rgba(170,220,150,.7); --o4:rgba(240,206,80,.7);
+  --ghost:color-mix(in srgb,#1f7a35 14%,transparent); --ghost-h:color-mix(in srgb,#1f7a35 24%,transparent); --track:color-mix(in srgb,#1f7a35 16%,transparent); --line:color-mix(in srgb,#1f7a35 22%,transparent);
+}
+[data-theme=contrast]{--ink:#0b1630;--muted:#2c3756;--card:#fff;--line:#14213d}
+[data-theme=contrast] .panel,[data-theme=contrast] .qprompt,[data-theme=contrast] .optbox,[data-theme=contrast] .who,[data-theme=contrast] .ph-card{border:3px solid #14213d}
+.season-fx.ocean span,.season-fx.arcade span{animation-name:srise,ssway}
