@@ -2,13 +2,13 @@
 import {
   el, fmt, clean, timeFor, qtypeLabel, prepareQuestion, isCorrect, answerText, displayValue, normalise,
   POWERUPS, TEAM_NAMES, makeCode, pick, shuffle, decodeGame, validateGame, storageGet, storageSet,
-} from "./common.js?v=20261121223425";
-import { SimHub, makeBots, hybridHost } from "./net-sim.js?v=20261121223425";
-import { playMusic, stopMusic, setIntensity, duckMusic, sfx, audioPrefs, setPref, unlock } from "./audio.js?v=20261121223425";
-import { confetti, confettiRain } from "./fx.js?v=20261121223425";
-import { mountPlayer } from "./player.js?v=20261121223425";
-import { THEMES, applyTheme } from "./theme.js?v=20261121223425";
-import { SAMPLES } from "./samples.js?v=20261121223425";
+} from "./common.js?v=20261121234210";
+import { SimHub, makeBots, hybridHost } from "./net-sim.js?v=20261121234210";
+import { playMusic, stopMusic, setIntensity, duckMusic, sfx, audioPrefs, setPref, unlock } from "./audio.js?v=20261121234210";
+import { confetti, confettiRain } from "./fx.js?v=20261121234210";
+import { mountPlayer } from "./player.js?v=20261121234210";
+import { THEMES, applyTheme } from "./theme.js?v=20261121234210";
+import { SAMPLES } from "./samples.js?v=20261121234210";
 
 const app = document.getElementById("app");
 const CONFIG = window.FIREBASE_CONFIG || null;
@@ -116,7 +116,7 @@ function renderSetup() {
     el("main", { class: "setup-grid" },
       el("section", { class: "panel" }, el("h2", null, "1 · Choose a game"),
         el("a", { class: "btn-primary big ai-link", href: "https://claude.ai/artifact/X4Nms6563zfX2juWQhUi9D", target: "_blank", rel: "noopener" }, "✨ Create a new game with AI"),
-        el("p", { class: "muted small" }, "Opens the Rapidiom Builder in Claude. When your questions are ready, press ▶ Play there to open the game here."),, chosen, list,
+        el("p", { class: "muted small" }, "Opens the Rapidiom Builder in Claude. When your questions are ready, press ▶ Play there to open the game here."), chosen, list,
         el("div", { class: "row wrap" }, el("button", { class: "btn-ghost sm", text: "📂 Load game file", onclick: () => fileIn.click() }),
           ...SAMPLES.map(s => el("button", { class: "btn-ghost sm", text: "✨ Sample: " + s.title, onclick: () => { pending = saveGame(structuredClone(s)); renderSetup(); } }))),
         pasteBox, pasteBtn, fileIn),
@@ -153,7 +153,7 @@ async function startSession({ live, settings, npc }) {
   };
   if (live) {
     try {
-      const { hostNet } = await import("./net-firebase.js?v=20261121223425");
+      const { hostNet } = await import("./net-firebase.js?v=20261121234210");
       G.net = await hostNet(CONFIG);
       let code; for (let i = 0; i < 6; i++) { code = makeCode(); if (await G.net.codeFree(code)) break; }
       G.code = code; await G.net.createGame(code);
@@ -164,7 +164,7 @@ async function startSession({ live, settings, npc }) {
     if (CONFIG && npc.phones) {
       // Real phones join through Firebase; NPCs stay on this computer.
       try {
-        const { hostNet } = await import("./net-firebase.js?v=20261121223425");
+        const { hostNet } = await import("./net-firebase.js?v=20261121234210");
         const live = await hostNet(CONFIG);
         let code; for (let i = 0; i < 6; i++) { code = makeCode(); if (await live.codeFree(code)) break; }
         G.net = hybridHost(live, hub); G.code = code; G.joinable = true;
@@ -183,7 +183,7 @@ async function startSession({ live, settings, npc }) {
 
 async function resumeSession(saved) {
   try {
-    const { hostNet } = await import("./net-firebase.js?v=20261121223425");
+    const { hostNet } = await import("./net-firebase.js?v=20261121234210");
     const net = await hostNet(CONFIG);
     if (!(await net.resumeGame(saved.code))) throw new Error("this game is no longer available");
     G = Object.assign(saved, { net, live: true });

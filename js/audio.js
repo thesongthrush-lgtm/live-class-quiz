@@ -1,5 +1,5 @@
 // Music and sound effects, synthesised in the browser (no audio files needed).
-import { storageGet, storageSet } from "./common.js?v=20261121223425";
+import { storageGet, storageSet } from "./common.js?v=20261121234210";
 
 const prefs = Object.assign({ music: true, sfx: true, vol: 0.8 }, storageGet("lq.audio", {}));
 let ctx = null, master, musicBus, sfxBus, noiseBuf;
