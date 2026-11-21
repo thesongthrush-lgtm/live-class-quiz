@@ -1,6 +1,6 @@
 // The student phone screen. Works with either transport (live or simulated).
-import { applyTheme } from "./theme.js?v=20261119081753";
-import { el, EMOJIS, randomNick, randomEmoji, clean, fmt, POWERUPS, storageGet, storageSet } from "./common.js?v=20261119081753";
+import { applyTheme } from "./theme.js?v=20261121130816";
+import { el, EMOJIS, randomNick, randomEmoji, clean, fmt, POWERUPS, storageGet, storageSet } from "./common.js?v=20261121130816";
 
 const KEY_ROWS = ["QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"];
 
@@ -23,6 +23,7 @@ export function mountPlayer(root, net, opts = {}) {
     const head = el("div", { class: "ph-head" }, el("span", { class: "ph-me" }, `${prof.emoji} ${prof.name}`), fb.team ? el("span", { class: "ph-team", style: { background: fb.team.color } }, fb.team.name) : null);
     root.append(head);
     if (state.phase === "lobby") root.append(lobbyView());
+    else if (state.phase === "intro") root.append(card(el("div", { class: "big-emoji intro-ph" }, "⚡"), el("h2", null, "Get ready!"), el("p", { class: "muted" }, "Look at the screen 👀")));
     else if (state.phase === "question") root.append(state.paused ? card(el("div", { class: "big-emoji" }, "⏸️"), el("h2", null, "Paused")) : questionView());
     else if (state.phase === "reveal") root.append(revealView());
     else if (state.phase === "final") root.append(finalView());

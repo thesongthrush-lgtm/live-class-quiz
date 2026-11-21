@@ -268,3 +268,35 @@ th{font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:var(--mut
 @media (prefers-reduced-motion:reduce){.season-fx{display:none}}
 .theme-swatches{display:flex;gap:6px;margin-left:auto}
 .theme-swatches i{width:18px;height:18px;border-radius:50%;display:block;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.08)}
+
+/* ---------- opening animation ---------- */
+.intro{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2vh;text-align:center}
+.intro-logo{font-size:clamp(4rem,11vw,10rem);font-weight:900;display:flex;gap:.2em;align-items:center;animation:logoin 1.1s cubic-bezier(.2,1.5,.4,1) both}
+.intro-logo b{background:linear-gradient(90deg,var(--lav-d),#e0708a);-webkit-background-clip:text;background-clip:text;color:transparent}
+@keyframes logoin{0%{transform:scale(.1) rotate(-25deg);opacity:0}60%{transform:scale(1.12) rotate(4deg);opacity:1}100%{transform:none}}
+.intro-title{font-size:clamp(2rem,4.5vw,4rem);font-weight:900;animation:slideup .7s .6s ease-out both}
+.intro-meta{font-size:clamp(1.3rem,2.4vw,2.2rem);font-weight:800;color:var(--muted);animation:slideup .7s .9s ease-out both}
+@keyframes slideup{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
+.intro-beat{font-size:clamp(2.4rem,5vw,4.6rem);font-weight:900;color:var(--lav-d);min-height:1.3em;animation:slideup .6s 1.3s ease-out both}
+.intro.counting .intro-logo{transform:scale(.6);transition:transform .5s}
+.intro-beat.num-anim{font-size:clamp(7rem,18vw,16rem);line-height:1;animation:numpop .85s ease-out both}
+.intro-beat.go-anim{font-size:clamp(7rem,18vw,16rem);line-height:1;color:#e0708a;animation:gopop .9s cubic-bezier(.2,1.6,.4,1) both}
+@keyframes numpop{0%{transform:scale(2.2);opacity:0}30%{transform:scale(1);opacity:1}100%{transform:scale(.8);opacity:.2}}
+@keyframes gopop{0%{transform:scale(.2) rotate(-10deg);opacity:0}100%{transform:scale(1.1);opacity:1}}
+.intro-ph{animation:numpop 1s ease-in-out infinite alternate}
+
+/* ---------- breakdown summary ---------- */
+.big-bd{max-width:1100px}
+.overall{display:flex;align-items:center;gap:32px;flex-wrap:wrap}
+.ov-pct{font-size:clamp(3.5rem,7vw,6rem);padding:.15em .5em;border-radius:28px}
+.ov-label{font-size:clamp(1.4rem,2.4vw,2.1rem);font-weight:900}
+.ov-counts{display:flex;gap:24px;flex-wrap:wrap;font-size:clamp(1.4rem,2.4vw,2.1rem);font-weight:800;margin:8px 0}
+.ov-counts .ok{color:var(--ok)} .ov-counts .bad{color:var(--bad)}
+.big-bd .panel h2{font-size:clamp(1.4rem,2.2vw,1.9rem)}
+.hardlist{display:grid;gap:14px}
+.hardq{background:var(--soft);border-radius:18px;padding:16px 20px;display:flex;flex-direction:column;gap:6px;font-size:clamp(1.25rem,2vw,1.7rem)}
+.hq-top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.hq-num{font-weight:900;color:var(--lav-d)}
+.hq-prompt{font-weight:800;font-size:1.1em}
+.hq-wrong{color:var(--muted)}
+.hq-none{font-size:clamp(1.3rem,2vw,1.7rem);font-weight:800}

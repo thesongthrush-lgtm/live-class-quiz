@@ -2,13 +2,13 @@
 import {
   el, fmt, clean, timeFor, qtypeLabel, prepareQuestion, isCorrect, answerText, displayValue, normalise,
   POWERUPS, TEAM_NAMES, makeCode, pick, shuffle, decodeGame, validateGame, storageGet, storageSet,
-} from "./common.js?v=20261119081753";
-import { SimHub, makeBots, hybridHost } from "./net-sim.js?v=20261119081753";
-import { playMusic, stopMusic, setIntensity, duckMusic, sfx, audioPrefs, setPref, unlock } from "./audio.js?v=20261119081753";
-import { confetti, confettiRain } from "./fx.js?v=20261119081753";
-import { mountPlayer } from "./player.js?v=20261119081753";
-import { THEMES, applyTheme } from "./theme.js?v=20261119081753";
-import { SAMPLES } from "./samples.js?v=20261119081753";
+} from "./common.js?v=20261121130816";
+import { SimHub, makeBots, hybridHost } from "./net-sim.js?v=20261121130816";
+import { playMusic, stopMusic, setIntensity, duckMusic, sfx, audioPrefs, setPref, unlock } from "./audio.js?v=20261121130816";
+import { confetti, confettiRain } from "./fx.js?v=20261121130816";
+import { mountPlayer } from "./player.js?v=20261121130816";
+import { THEMES, applyTheme } from "./theme.js?v=20261121130816";
+import { SAMPLES } from "./samples.js?v=20261121130816";
 
 const app = document.getElementById("app");
 const CONFIG = window.FIREBASE_CONFIG || null;
@@ -150,7 +150,7 @@ async function startSession({ live, settings, npc }) {
   };
   if (live) {
     try {
-      const { hostNet } = await import("./net-firebase.js?v=20261119081753");
+      const { hostNet } = await import("./net-firebase.js?v=20261121130816");
       G.net = await hostNet(CONFIG);
       let code; for (let i = 0; i < 6; i++) { code = makeCode(); if (await G.net.codeFree(code)) break; }
       G.code = code; await G.net.createGame(code);
@@ -161,7 +161,7 @@ async function startSession({ live, settings, npc }) {
     if (CONFIG && npc.phones) {
       // Real phones join through Firebase; NPCs stay on this computer.
       try {
-        const { hostNet } = await import("./net-firebase.js?v=20261119081753");
+        const { hostNet } = await import("./net-firebase.js?v=20261121130816");
         const live = await hostNet(CONFIG);
         let code; for (let i = 0; i < 6; i++) { code = makeCode(); if (await live.codeFree(code)) break; }
         G.net = hybridHost(live, hub); G.code = code; G.joinable = true;
@@ -180,7 +180,7 @@ async function startSession({ live, settings, npc }) {
 
 async function resumeSession(saved) {
   try {
-    const { hostNet } = await import("./net-firebase.js?v=20261119081753");
+    const { hostNet } = await import("./net-firebase.js?v=20261121130816");
     const net = await hostNet(CONFIG);
     if (!(await net.resumeGame(saved.code))) throw new Error("this game is no longer available");
     G = Object.assign(saved, { net, live: true });
@@ -252,6 +252,26 @@ function publishState() {
 }
 
 // ============================================================ question flow
+function startIntro() {
+  if (G.phase !== "lobby") return;
+  G.phase = "intro"; publishState(); stopMusic(0.3); render();
+  const box = app.querySelector(".intro"), beat = app.querySelector(".intro-beat");
+  sfx.whoosh(); setTimeout(() => sfx.sparkle(), 450);
+  const steps = [["3", 2300], ["2", 3200], ["1", 4100]];
+  steps.forEach(([n, t]) => setTimeout(() => { if (G.phase !== "intro") return; box.classList.add("counting"); beat.textContent = n; beat.className = "intro-beat go-anim"; void beat.offsetWidth; beat.className = "intro-beat num-anim"; sfx.tick(n === "1"); }, t));
+  setTimeout(() => { if (G.phase !== "intro") return; beat.textContent = "Go!"; beat.className = "intro-beat"; void beat.offsetWidth; beat.className = "intro-beat go-anim"; sfx.start(); confetti(); }, 5000);
+  setTimeout(() => { if (G && G.phase === "intro") startQuestion(0); }, 5900);
+}
+
+function introView() {
+  const n = active().length;
+  return el("div", { class: "intro" },
+    el("div", { class: "intro-logo" }, "⚡", el("b", null, "Rapidiom")),
+    el("div", { class: "intro-title" }, G.title),
+    el("div", { class: "intro-meta" }, `${n} player${n === 1 ? "" : "s"} · ${G.qs.length} questions`),
+    el("div", { class: "intro-beat" }, "Get ready!"));
+}
+
 function startQuestion(i) {
   if (G.unsubA) G.unsubA(); if (G.unsubR) G.unsubR();
   G.qi = i; G.phase = "question"; G.paused = false;
@@ -577,14 +597,27 @@ function renderBreakdown(b) {
       el("button", { class: "btn-ghost sm", text: "Copy as spreadsheet", onclick: async () => { try { await navigator.clipboard.writeText(csv.replace(/","/g, '"\t"')); toast("Copied: paste into a spreadsheet"); } catch { toast("Copy isn't allowed here"); } } }),
       el("button", { class: "btn-ghost sm", text: "Download CSV", onclick: () => { const a = el("a", { href: URL.createObjectURL(new Blob([csv], { type: "text/csv" })), download: (b.title || "results").replace(/[^\w-]+/g, "_") + ".csv" }); document.body.append(a); a.click(); a.remove(); } }),
       el("button", { class: "btn-primary sm", text: G && G.phase === "final" ? "← Back to results" : "← Back", onclick: () => G && G.phase === "final" ? render() : renderSetup() }))),
-    el("main", { class: "bd" },
-      el("section", { class: "panel" }, el("h2", null, "Questions: hardest first"),
-        table(["Q", "Type", "Prompt", "Answer", "Correct", "Most common wrong answer"],
-          b.questions.slice().sort((x, y) => (x.voided ? 101 : x.pct) - (y.voided ? 101 : y.pct)).map(q => q.voided ? [q.num, q.type, q.prompt, "(skipped)", "", ""] :
-            [q.num, q.type, q.prompt, q.answer, el("span", { class: "pct " + (q.pct < 50 ? "low" : q.pct < 75 ? "mid" : "hi") }, `${q.pct}% (${q.right}/${q.of})`), q.commonWrong]))),
-      el("section", { class: "panel" }, el("h2", null, "Students"),
-        table(["#", "Student", "Team", "Score", "Correct", "Missed", "Left the page"],
-          b.students.map(s => [s.rank, `${s.emoji} ${s.name}`, s.team, fmt(s.score), `${s.correct}/${b.total}`, s.missed.map(n => "Q" + n).join(", ") || "—", s.left.length ? "⚠️ " + s.left.map(n => "Q" + n).join(", ") : ""])))));
+    el("main", { class: "bd big-bd" }, ...breakdownBody(b)));
+}
+function breakdownBody(b) {
+  const qs = b.questions.filter(q => !q.voided);
+  const right = qs.reduce((a, q) => a + q.right, 0), of = qs.reduce((a, q) => a + q.of, 0);
+  const pct = of ? Math.round(right / of * 100) : 0;
+  const hard = qs.filter(q => q.pct < 50).sort((x, y) => x.pct - y.pct);
+  return [
+    el("section", { class: "panel overall" },
+      el("div", { class: "ov-pct pct " + (pct < 50 ? "low" : pct < 75 ? "mid" : "hi") }, pct + "%"),
+      el("div", null, el("div", { class: "ov-label" }, "of answers were correct"),
+        el("div", { class: "ov-counts" }, el("span", { class: "ok" }, `✅ ${right} correct`), el("span", { class: "bad" }, `❌ ${of - right} incorrect`)),
+        el("div", { class: "muted" }, `${qs.length} question${qs.length === 1 ? "" : "s"} · unanswered counts as incorrect`))),
+    el("section", { class: "panel" }, el("h2", null, "Difficult questions (fewer than half got them right)"),
+      hard.length ? el("div", { class: "hardlist" }, ...hard.map(q => el("div", { class: "hardq" },
+        el("div", { class: "hq-top" }, el("span", { class: "hq-num" }, "Q" + q.num), el("span", { class: "pct low" }, `${q.pct}% · ${q.right}/${q.of}`)),
+        el("div", { class: "hq-prompt" }, q.prompt),
+        el("div", { class: "hq-ans" }, "Answer: ", el("b", null, q.answer)),
+        q.commonWrong ? el("div", { class: "hq-wrong" }, "Most common wrong answer: ", el("b", null, q.commonWrong)) : null)))
+      : el("p", { class: "hq-none" }, "🎉 No difficult questions: at least half the class got every question right.")),
+  ];
 }
 function table(head, rows) {
   return el("div", { class: "tablewrap" }, el("table", null, el("thead", null, el("tr", null, ...head.map(h => el("th", null, h)))),
@@ -618,6 +651,7 @@ function render() {
   const main = el("main", { class: "stage" });
   app.append(topbar(), main);
   if (G.phase === "lobby") { main.append(lobbyView()); duckMusic(false); playMusic("lobby"); }
+  else if (G.phase === "intro") main.append(introView());
   else if (G.phase === "question") main.append(questionView());
   else if (G.phase === "reveal") main.append(revealView());
   else if (G.phase === "final") main.append(finalView());
@@ -651,7 +685,7 @@ function lobbyView() {
       el("p", { class: "muted small" }, "Tap a player to rename or remove them."),
       el("div", { class: "row gap" },
         G.settings.teams ? el("button", { class: "btn-ghost", text: "🔀 Shuffle teams", onclick: shuffleTeams }) : null,
-        el("button", { class: "btn-primary big", disabled: !ps.length, text: `Start game (${G.qs.length} questions) →`, onclick: () => startQuestion(0) }))));
+        el("button", { class: "btn-primary big", disabled: !ps.length, text: `Start game (${G.qs.length} questions) →`, onclick: startIntro }))));
 }
 
 function promptBlock(q) {
