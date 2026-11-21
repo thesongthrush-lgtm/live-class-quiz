@@ -372,3 +372,4 @@ th{font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:var(--mut
 [data-theme=contrast]{--ink:#0b1630;--muted:#2c3756;--card:#fff;--line:#14213d}
 [data-theme=contrast] .panel,[data-theme=contrast] .qprompt,[data-theme=contrast] .optbox,[data-theme=contrast] .who,[data-theme=contrast] .ph-card{border:3px solid #14213d}
 .season-fx.ocean span,.season-fx.arcade span{animation-name:srise,ssway}
+.ai-link{display:inline-block;text-decoration:none;margin:4px 0 2px;text-align:center}
