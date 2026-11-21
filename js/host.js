@@ -2,13 +2,13 @@
 import {
   el, fmt, clean, timeFor, qtypeLabel, prepareQuestion, isCorrect, answerText, displayValue, normalise,
   POWERUPS, TEAM_NAMES, makeCode, pick, shuffle, decodeGame, validateGame, storageGet, storageSet,
-} from "./common.js?v=20261121215231";
-import { SimHub, makeBots, hybridHost } from "./net-sim.js?v=20261121215231";
-import { playMusic, stopMusic, setIntensity, duckMusic, sfx, audioPrefs, setPref, unlock } from "./audio.js?v=20261121215231";
-import { confetti, confettiRain } from "./fx.js?v=20261121215231";
-import { mountPlayer } from "./player.js?v=20261121215231";
-import { THEMES, applyTheme } from "./theme.js?v=20261121215231";
-import { SAMPLES } from "./samples.js?v=20261121215231";
+} from "./common.js?v=20261121204000";
+import { SimHub, makeBots, hybridHost } from "./net-sim.js?v=20261121204000";
+import { playMusic, stopMusic, setIntensity, duckMusic, sfx, audioPrefs, setPref, unlock } from "./audio.js?v=20261121204000";
+import { confetti, confettiRain } from "./fx.js?v=20261121204000";
+import { mountPlayer } from "./player.js?v=20261121204000";
+import { THEMES, applyTheme } from "./theme.js?v=20261121204000";
+import { SAMPLES } from "./samples.js?v=20261121204000";
 
 const app = document.getElementById("app");
 const CONFIG = window.FIREBASE_CONFIG || null;
@@ -44,9 +44,6 @@ function saveGame(g) {
   storageSet("lq.games", list.slice(0, 60));
   return g;
 }
-
-// Test mode is hidden on the live site; add ?test to the address to bring it back.
-const SHOW_TEST = !CONFIG || new URLSearchParams(location.search).has("test");
 
 function themePrefs() { return Object.assign({ theme: "", decor: true }, storageGet("lq.theme", {})); }
 
@@ -126,11 +123,11 @@ function renderSetup() {
         field("Theme", themeSel), field("Moving decorations (petals, leaves, snow…)", decor),
         el("div", { class: "row wrap gap" }, liveBtn),
         !CONFIG ? el("p", { class: "muted small" }, "Live games switch on once Firebase is connected.") : null,
-        ...(SHOW_TEST ? [el("hr"),
+        el("hr"),
         el("h3", null, "Test mode"),
         field("Number of NPCs", npcN), field("NPC ability", npcMix), field("Play along on a phone preview", along),
         field("Let real phones join too (shows a QR code)", phones),
-        testBtn] : [])),
+        testBtn),
       session && session.live && Date.now() - session.savedAt < 4 * 3600e3 ? el("section", { class: "panel" }, el("h2", null, "Unfinished game"),
         el("p", null, `Game ${session.code} · ${session.title} · question ${Math.max(0, session.qi + 1)} of ${session.total}`),
         el("div", { class: "row" }, el("button", { class: "btn-primary", text: "Resume", onclick: () => resumeSession(session) }),
@@ -154,7 +151,7 @@ async function startSession({ live, settings, npc }) {
   };
   if (live) {
     try {
-      const { hostNet } = await import("./net-firebase.js?v=20261121215231");
+      const { hostNet } = await import("./net-firebase.js?v=20261121204000");
       G.net = await hostNet(CONFIG);
       let code; for (let i = 0; i < 6; i++) { code = makeCode(); if (await G.net.codeFree(code)) break; }
       G.code = code; await G.net.createGame(code);
@@ -165,7 +162,7 @@ async function startSession({ live, settings, npc }) {
     if (CONFIG && npc.phones) {
       // Real phones join through Firebase; NPCs stay on this computer.
       try {
-        const { hostNet } = await import("./net-firebase.js?v=20261121215231");
+        const { hostNet } = await import("./net-firebase.js?v=20261121204000");
         const live = await hostNet(CONFIG);
         let code; for (let i = 0; i < 6; i++) { code = makeCode(); if (await live.codeFree(code)) break; }
         G.net = hybridHost(live, hub); G.code = code; G.joinable = true;
@@ -184,7 +181,7 @@ async function startSession({ live, settings, npc }) {
 
 async function resumeSession(saved) {
   try {
-    const { hostNet } = await import("./net-firebase.js?v=20261121215231");
+    const { hostNet } = await import("./net-firebase.js?v=20261121204000");
     const net = await hostNet(CONFIG);
     if (!(await net.resumeGame(saved.code))) throw new Error("this game is no longer available");
     G = Object.assign(saved, { net, live: true });
