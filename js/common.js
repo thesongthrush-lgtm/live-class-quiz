@@ -37,7 +37,17 @@ export const QTYPE_LABELS = {
   verb_brackets: "Verb in brackets", transformation: "Key-word transformation",
   sentence_unscramble: "Put the words in order",
 };
-export const qtypeLabel = q => QTYPE_LABELS[q.qtype] || "Question";
+// Plain-English labels for beginner (A1/A2) games.
+export const SIMPLE_LABELS = {
+  mc: "Choose the right answer", definition: "What is the word?", odd_one_out: "Which one is different?",
+  collocation: "Which word goes with it?", confusables: "Choose the right word", missing_letters: "Write the missing letters",
+  letter_unscramble: "Make the word", emoji: "Look and guess", word_formation: "Change the word",
+  phrasal_verb: "Choose the right word", right_wrong: "Right ✅ or wrong ❌?", gap_fill: "Fill the gap",
+  error_spot: "Find the mistake", correct_sentence: "Which sentence is right?", verb_brackets: "Write the verb",
+  transformation: "Write it again", sentence_unscramble: "Put the words in order",
+};
+export const isSimple = level => /^A[12]/i.test(String(level || ""));
+export const qtypeLabel = (q, simple) => (simple && SIMPLE_LABELS[q.qtype]) || QTYPE_LABELS[q.qtype] || "Question";
 
 // Capitalisation, punctuation, accents and spacing are forgiven; spelling is not.
 export function normalise(s) {

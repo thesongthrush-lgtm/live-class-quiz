@@ -1,14 +1,13 @@
 // Teacher / projector screen.
 import {
   el, fmt, clean, timeFor, qtypeLabel, prepareQuestion, isCorrect, answerText, displayValue, normalise,
-  POWERUPS, TEAM_NAMES, makeCode, pick, shuffle, decodeGame, validateGame, storageGet, storageSet,
-} from "./common.js?v=20261121234210";
-import { SimHub, makeBots, hybridHost } from "./net-sim.js?v=20261121234210";
-import { playMusic, stopMusic, setIntensity, duckMusic, sfx, audioPrefs, setPref, unlock } from "./audio.js?v=20261121234210";
-import { confetti, confettiRain } from "./fx.js?v=20261121234210";
-import { mountPlayer } from "./player.js?v=20261121234210";
-import { THEMES, applyTheme } from "./theme.js?v=20261121234210";
-import { SAMPLES } from "./samples.js?v=20261121234210";
+  POWERUPS, TEAM_NAMES, makeCode, pick, shuffle, decodeGame, validateGame, storageGet, storageSet, isSimple } from "./common.js?v=20261122105631";
+import { SimHub, makeBots, hybridHost } from "./net-sim.js?v=20261122105631";
+import { playMusic, stopMusic, setIntensity, duckMusic, sfx, audioPrefs, setPref, unlock } from "./audio.js?v=20261122105631";
+import { confetti, confettiRain } from "./fx.js?v=20261122105631";
+import { mountPlayer } from "./player.js?v=20261122105631";
+import { THEMES, applyTheme } from "./theme.js?v=20261122105631";
+import { SAMPLES } from "./samples.js?v=20261122105631";
 
 const app = document.getElementById("app");
 const CONFIG = window.FIREBASE_CONFIG || null;
@@ -149,11 +148,11 @@ async function startSession({ live, settings, npc }) {
     live, settings, title: game.title || "Untitled game", gameId: game.id, game,
     qs: game.questions.map(prepareQuestion),
     players: {}, results: [], inventory: {}, flags: {}, qi: -1, phase: "lobby", finalStage: 0, halfRanks: null,
-    code: null, net: null,
+    code: null, net: null, simple: isSimple(game.level),
   };
   if (live) {
     try {
-      const { hostNet } = await import("./net-firebase.js?v=20261121234210");
+      const { hostNet } = await import("./net-firebase.js?v=20261122105631");
       G.net = await hostNet(CONFIG);
       let code; for (let i = 0; i < 6; i++) { code = makeCode(); if (await G.net.codeFree(code)) break; }
       G.code = code; await G.net.createGame(code);
@@ -164,7 +163,7 @@ async function startSession({ live, settings, npc }) {
     if (CONFIG && npc.phones) {
       // Real phones join through Firebase; NPCs stay on this computer.
       try {
-        const { hostNet } = await import("./net-firebase.js?v=20261121234210");
+        const { hostNet } = await import("./net-firebase.js?v=20261122105631");
         const live = await hostNet(CONFIG);
         let code; for (let i = 0; i < 6; i++) { code = makeCode(); if (await live.codeFree(code)) break; }
         G.net = hybridHost(live, hub); G.code = code; G.joinable = true;
@@ -183,7 +182,7 @@ async function startSession({ live, settings, npc }) {
 
 async function resumeSession(saved) {
   try {
-    const { hostNet } = await import("./net-firebase.js?v=20261121234210");
+    const { hostNet } = await import("./net-firebase.js?v=20261122105631");
     const net = await hostNet(CONFIG);
     if (!(await net.resumeGame(saved.code))) throw new Error("this game is no longer available");
     G = Object.assign(saved, { net, live: true });
@@ -243,7 +242,7 @@ function shuffleTeams() {
 
 function publishState() {
   const q = G.qi >= 0 ? G.qs[G.qi] : null;
-  const s = { phase: G.phase, count: active().length, total: G.qs.length, theme: G.settings.theme || "", decor: G.settings.decor !== false };
+  const s = { phase: G.phase, count: active().length, total: G.qs.length, theme: G.settings.theme || "", decor: G.settings.decor !== false, simple: !!G.simple };
   if (q && (G.phase === "question" || G.phase === "reveal")) {
     Object.assign(s, { qKey: "q" + G.qi, num: G.qi + 1, format: q.format, deadline: G.deadline, duration: G.duration, paused: !!G.paused, answered: G.cur ? Object.keys(G.cur.answers).length : 0 });
     if (q.format === "choice") s.nOpts = q._options.length;
@@ -708,7 +707,7 @@ function lobbyView() {
 
 function promptBlock(q) {
   return el("div", { class: "qprompt" },
-    el("div", { class: "qtype" }, qtypeLabel(q)),
+    el("div", { class: "qtype" }, qtypeLabel(q, G.simple)),
     el("div", { class: "qtext" + (q.qtype === "emoji" ? " emoji" : "") }, q.prompt),
     q.sub ? el("div", { class: "qsub" }, q.sub) : null);
 }
@@ -717,7 +716,7 @@ function questionView() {
   const q = G.qs[G.qi];
   let body;
   if (q.format === "choice") body = el("div", { class: "optgrid n" + q._options.length }, ...q._options.map((o, i) => el("div", { class: "optbox o" + (i + 1) }, el("span", { class: "num" }, i + 1), el("span", null, o))));
-  else if (q.format === "letters") body = q._scrambled ? el("div", { class: "tiles" }, ...q._scrambled.split("").map(c => el("span", { class: "tile" }, c))) : el("p", { class: "tapnote" }, "⌨️ Spell your answer on your phone");
+  else if (q.format === "letters") body = q._scrambled ? el("div", { class: "tiles" }, ...q._scrambled.split("").map(c => el("span", { class: "tile" }, c))) : el("p", { class: "tapnote" }, G.simple ? "⌨️ Write the word on your phone" : "⌨️ Spell your answer on your phone");
   else body = el("div", { class: "tiles words" }, ...q._words.map((w, i) => el("span", { class: "tile word" }, el("sup", null, i + 1), w)));
   const bar = el("div", { class: "tbar big" }, el("i"));
   const secs = el("div", { class: "secs" });

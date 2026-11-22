@@ -1,6 +1,6 @@
 // The student phone screen. Works with either transport (live or simulated).
-import { applyTheme } from "./theme.js?v=20261121234210";
-import { el, EMOJIS, randomNick, randomEmoji, clean, fmt, POWERUPS, storageGet, storageSet } from "./common.js?v=20261121234210";
+import { applyTheme } from "./theme.js?v=20261122105631";
+import { el, EMOJIS, randomNick, randomEmoji, clean, fmt, POWERUPS, storageGet, storageSet } from "./common.js?v=20261122105631";
 
 const KEY_ROWS = ["QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"];
 const add = (t, c) => t.length < 30 ? t + c : t;
@@ -59,7 +59,7 @@ export function mountPlayer(root, net, opts = {}) {
     return card(
       el("div", { class: "big-emoji" }, prof.emoji),
       el("h2", null, prof.name),
-      el("p", { class: "muted" }, "You're in! Waiting for your teacher to start…"),
+      el("p", { class: "muted" }, state && state.simple ? "You are in! 🙂 Please wait." : "You're in! Waiting for your teacher to start…"),
       state.count ? el("p", { class: "muted small" }, `${state.count} player${state.count === 1 ? "" : "s"} in the game`) : null,
       el("button", { class: "btn-ghost", text: "✏️ Change name or emoji", onclick: () => { editing = true; render(); } }));
   }
@@ -84,7 +84,7 @@ export function mountPlayer(root, net, opts = {}) {
     const head = el("div", { class: "ph-qhead" }, `Question ${state.num} of ${state.total}`);
     const answered = sentFor(state.qKey) || fb.answered === state.qKey;
     if (locked || answered) {
-      return card(head, el("div", { class: "big-emoji" }, answered ? "✅" : "⌛"), el("h2", null, answered ? "Answer locked in" : "Time's up"), el("p", { class: "muted" }, "Look at the screen 👀"));
+      return card(head, el("div", { class: "big-emoji" }, answered ? "✅" : "⌛"), el("h2", null, answered ? (state.simple ? "Done!" : "Answer locked in") : (state.simple ? "Time is up ⏰" : "Time's up")), el("p", { class: "muted" }, "Look at the screen 👀"));
     }
     const hint = fb.hint && fb.hint.qKey === state.qKey ? fb.hint : null;
     let body;
@@ -146,7 +146,9 @@ export function mountPlayer(root, net, opts = {}) {
   function puBadge() {
     const p = POWERUPS[fb.pu];
     const on = state && state.phase === "question";
-    const msg = { double: on ? "is on for this question: get it right for double points!" : "will switch on by itself next question",
+    const msg = state && state.simple ? { double: on ? "Right answer = 2 × points! ✖️2" : "Next question: 2 × points!",
+      safety: on ? "Wrong answer? You still get some points 🙂" : "Help for a wrong answer 🙂",
+      hint: on ? "Help comes soon 💡" : "Help in the next question 💡" }[fb.pu] : { double: on ? "is on for this question: get it right for double points!" : "will switch on by itself next question",
       safety: on ? "is ready: if you get this one wrong, you still get half points" : "will switch on by itself if you get one wrong",
       hint: on ? "will pop up halfway through this question" : "will pop up by itself during the next question" }[fb.pu] || p.desc;
     return el("div", { class: "pu-badge" + (on ? " live" : "") }, `${p.icon} ${p.name} `, el("span", { class: "small" }, msg));
