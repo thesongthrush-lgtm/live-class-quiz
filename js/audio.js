@@ -1,5 +1,5 @@
 // Music and sound effects, synthesised in the browser (no audio files needed).
-import { storageGet, storageSet } from "./common.js?v=20261122105631";
+import { storageGet, storageSet } from "./common.js?v=20261123205517";
 
 const prefs = Object.assign({ music: true, sfx: true, vol: 0.8 }, storageGet("lq.audio", {}));
 let ctx = null, master, musicBus, sfxBus, noiseBuf;
@@ -167,4 +167,9 @@ export const sfx = {
     for (let i = 0; i < dur * 70; i++) { const t = t0 + Math.random() * dur; const fade = 1 - (t - t0) / dur; noise(sfxBus, t, { d: 0.03, vol: 0.05 + 0.12 * fade * Math.random(), type: "bandpass", f: 1200 + Math.random() * 2500, q: 1.5 }); }
   },
   award() { if (!ready()) return; const t = now(); sfx.whoosh(); [79, 84, 88].forEach((m, i) => tone(sfxBus, t + 0.25 + i * 0.09, { f: hz(m), d: 0.7, vol: 0.13 })); },
+  // Weakest Link extras
+  bank() { if (!ready()) return; const t = now(); [79, 84, 88, 91, 96].forEach((m, i) => { tone(sfxBus, t + i * 0.055, { type: "triangle", f: hz(m), d: 0.35, vol: 0.13 }); tone(sfxBus, t + i * 0.055, { f: hz(m) * 2.4, d: 0.12, vol: 0.03 }); }); noise(sfxBus, t + 0.2, { d: 0.5, vol: 0.06, f: 7000 }); },
+  correct() { if (!ready()) return; const t = now(); tone(sfxBus, t, { type: "triangle", f: hz(76), d: 0.12, vol: 0.16 }); tone(sfxBus, t + 0.1, { type: "triangle", f: hz(83), d: 0.3, vol: 0.16 }); },
+  sting() { if (!ready()) return; const t = now(); [38, 45, 50, 53].forEach(m => tone(sfxBus, t, { type: "sawtooth", f: hz(m), a: 0.08, d: 1.6, vol: 0.07, filter: 700, q: 3 })); noise(sfxBus, t, { d: 1.4, vol: 0.12, type: "bandpass", f: 200, f2: 2400, q: 1, a: 0.6 }); kick(sfxBus, t + 0.62, 0.9); },
+  gong() { if (!ready()) return; const t = now(); [98, 147, 196.5, 262].forEach((f, i) => tone(sfxBus, t, { f, a: 0.004, d: 2.4 - i * 0.4, vol: 0.12 / (i + 1) })); noise(sfxBus, t, { d: 0.8, vol: 0.08, type: "bandpass", f: 900, q: 2 }); },
 };

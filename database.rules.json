@@ -44,6 +44,51 @@
           }
         }
       }
+    },
+    "wl": {
+      "$code": {
+        ".read": "auth != null && data.child('host').val() === auth.uid",
+        ".write": "auth != null && (data.child('host').val() === auth.uid || (!data.exists() && newData.child('host').val() === auth.uid))",
+        "state": {
+          ".read": "auth != null"
+        },
+        "players": {
+          "$uid": {
+            ".read": "auth != null && auth.uid === $uid",
+            ".write": "auth != null && auth.uid === $uid && root.child('wl/' + $code + '/host').exists() && !data.child('kicked').exists() && !newData.child('kicked').exists()",
+            ".validate": "newData.child('name').isString() && newData.child('name').val().length <= 16 && newData.child('emoji').isString() && newData.child('emoji').val().length <= 16"
+          }
+        },
+        "bank": {
+          "$t": {
+            "$uid": {
+              ".write": "auth != null && auth.uid === $uid && !data.exists() && root.child('wl/' + $code + '/players/' + $uid + '/name').exists() && !root.child('wl/' + $code + '/players/' + $uid + '/kicked').exists() && root.child('wl/' + $code + '/state/phase').val() === 'bank' && root.child('wl/' + $code + '/state/turnKey').val() === $t && root.child('wl/' + $code + '/state/allowed/' + $uid).val() === true && root.child('wl/' + $code + '/state/paused').val() !== true && now <= root.child('wl/' + $code + '/state/deadline').val() + 1500",
+              ".validate": "newData.isBoolean()"
+            }
+          }
+        },
+        "answers": {
+          "$t": {
+            "$uid": {
+              ".write": "auth != null && auth.uid === $uid && !data.exists() && root.child('wl/' + $code + '/players/' + $uid + '/name').exists() && !root.child('wl/' + $code + '/players/' + $uid + '/kicked').exists() && root.child('wl/' + $code + '/state/phase').val() === 'answer' && root.child('wl/' + $code + '/state/turnKey').val() === $t && root.child('wl/' + $code + '/state/allowed/' + $uid).val() === true && root.child('wl/' + $code + '/state/paused').val() !== true && now <= root.child('wl/' + $code + '/state/deadline').val() + 1500",
+              ".validate": "newData.hasChildren(['v', 't']) && newData.child('v').isNumber() && newData.child('v').val() >= 1 && newData.child('v').val() <= 3 && newData.child('t').val() === now"
+            }
+          }
+        },
+        "votes": {
+          "$r": {
+            "$uid": {
+              ".write": "auth != null && auth.uid === $uid && !data.exists() && root.child('wl/' + $code + '/players/' + $uid + '/name').exists() && !root.child('wl/' + $code + '/players/' + $uid + '/kicked').exists() && root.child('wl/' + $code + '/state/phase').val() === 'vote' && root.child('wl/' + $code + '/state/voteKey').val() === $r && root.child('wl/' + $code + '/state/paused').val() !== true",
+              ".validate": "newData.isString() && newData.val() !== $uid && root.child('wl/' + $code + '/state/cands/' + newData.val()).exists()"
+            }
+          }
+        },
+        "feedback": {
+          "$uid": {
+            ".read": "auth != null && auth.uid === $uid"
+          }
+        }
+      }
     }
   }
 }

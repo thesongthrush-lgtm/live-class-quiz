@@ -1,13 +1,13 @@
 // Teacher / projector screen.
 import {
   el, fmt, clean, timeFor, qtypeLabel, prepareQuestion, isCorrect, answerText, displayValue, normalise,
-  POWERUPS, TEAM_NAMES, makeCode, pick, shuffle, decodeGame, validateGame, storageGet, storageSet, isSimple } from "./common.js?v=20261122105631";
-import { SimHub, makeBots, hybridHost } from "./net-sim.js?v=20261122105631";
-import { playMusic, stopMusic, setIntensity, duckMusic, sfx, audioPrefs, setPref, unlock } from "./audio.js?v=20261122105631";
-import { confetti, confettiRain } from "./fx.js?v=20261122105631";
-import { mountPlayer } from "./player.js?v=20261122105631";
-import { THEMES, applyTheme } from "./theme.js?v=20261122105631";
-import { SAMPLES } from "./samples.js?v=20261122105631";
+  POWERUPS, TEAM_NAMES, makeCode, pick, shuffle, decodeGame, validateGame, storageGet, storageSet, isSimple } from "./common.js?v=20261123205517";
+import { SimHub, makeBots, hybridHost } from "./net-sim.js?v=20261123205517";
+import { playMusic, stopMusic, setIntensity, duckMusic, sfx, audioPrefs, setPref, unlock } from "./audio.js?v=20261123205517";
+import { confetti, confettiRain } from "./fx.js?v=20261123205517";
+import { mountPlayer } from "./player.js?v=20261123205517";
+import { THEMES, applyTheme } from "./theme.js?v=20261123205517";
+import { SAMPLES } from "./samples.js?v=20261123205517";
 
 const app = document.getElementById("app");
 const CONFIG = window.FIREBASE_CONFIG || null;
@@ -152,7 +152,7 @@ async function startSession({ live, settings, npc }) {
   };
   if (live) {
     try {
-      const { hostNet } = await import("./net-firebase.js?v=20261122105631");
+      const { hostNet } = await import("./net-firebase.js?v=20261123205517");
       G.net = await hostNet(CONFIG);
       let code; for (let i = 0; i < 6; i++) { code = makeCode(); if (await G.net.codeFree(code)) break; }
       G.code = code; await G.net.createGame(code);
@@ -163,7 +163,7 @@ async function startSession({ live, settings, npc }) {
     if (CONFIG && npc.phones) {
       // Real phones join through Firebase; NPCs stay on this computer.
       try {
-        const { hostNet } = await import("./net-firebase.js?v=20261122105631");
+        const { hostNet } = await import("./net-firebase.js?v=20261123205517");
         const live = await hostNet(CONFIG);
         let code; for (let i = 0; i < 6; i++) { code = makeCode(); if (await live.codeFree(code)) break; }
         G.net = hybridHost(live, hub); G.code = code; G.joinable = true;
@@ -182,7 +182,7 @@ async function startSession({ live, settings, npc }) {
 
 async function resumeSession(saved) {
   try {
-    const { hostNet } = await import("./net-firebase.js?v=20261122105631");
+    const { hostNet } = await import("./net-firebase.js?v=20261123205517");
     const net = await hostNet(CONFIG);
     if (!(await net.resumeGame(saved.code))) throw new Error("this game is no longer available");
     G = Object.assign(saved, { net, live: true });
