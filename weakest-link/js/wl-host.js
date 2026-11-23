@@ -1,15 +1,15 @@
 // Weakest Link: teacher / TV screen and game engine.
-import { el, clean, makeCode, shuffle, pick, decodeGame, storageGet, storageSet } from "../../js/common.js?v=20261123205517";
-import { playMusic, stopMusic, setIntensity, sfx, audioPrefs, setPref, unlock } from "../../js/audio.js?v=20261123205517";
-import { confetti, confettiRain } from "../../js/fx.js?v=20261123205517";
-import { SimHub, makeBots, hybridHost } from "./wl-net.js?v=20261123205517";
-import { mountPlayer } from "./wl-player.js?v=20261123205517";
-import * as R from "./wl-rules.js?v=20261123205517";
-import { SAMPLES } from "./wl-samples.js?v=20261123205517";
+import { el, clean, makeCode, shuffle, pick, decodeGame, storageGet, storageSet } from "../../js/common.js?v=20261123205959";
+import { playMusic, stopMusic, setIntensity, sfx, audioPrefs, setPref, unlock } from "../../js/audio.js?v=20261123205959";
+import { confetti, confettiRain } from "../../js/fx.js?v=20261123205959";
+import { SimHub, makeBots, hybridHost } from "./wl-net.js?v=20261123205959";
+import { mountPlayer } from "./wl-player.js?v=20261123205959";
+import * as R from "./wl-rules.js?v=20261123205959";
+import { SAMPLES } from "./wl-samples.js?v=20261123205959";
 
 const app = document.getElementById("app");
 const CONFIG = window.FIREBASE_CONFIG || null;
-const BUILDER_URL = "";   // filled in once the Weakest Link Builder is published in Claude
+const BUILDER_URL = "https://claude.ai/artifact/NvE93kWJjYKajB2S8GdKAh";
 const RESULT_MS = 2600, BANK_FLASH_MS = 1300;
 
 let G = null, pending = null, tick = null;
@@ -146,7 +146,7 @@ async function startSession({ live, settings, npc }) {
   };
   if (live) {
     try {
-      const { hostNet } = await import("./wl-net.js?v=20261123205517");
+      const { hostNet } = await import("./wl-net.js?v=20261123205959");
       G.net = await hostNet(CONFIG);
       let code; for (let i = 0; i < 6; i++) { code = makeCode(); if (await G.net.codeFree(code)) break; }
       G.code = code; await G.net.createGame(code);
@@ -155,7 +155,7 @@ async function startSession({ live, settings, npc }) {
     const hub = new SimHub(); G.hub = hub;
     if (CONFIG && npc.phones) {
       try {
-        const { hostNet } = await import("./wl-net.js?v=20261123205517");
+        const { hostNet } = await import("./wl-net.js?v=20261123205959");
         const liveNet = await hostNet(CONFIG);
         let code; for (let i = 0; i < 6; i++) { code = makeCode(); if (await liveNet.codeFree(code)) break; }
         G.net = hybridHost(liveNet, hub); G.code = code; G.joinable = true;
@@ -176,7 +176,7 @@ async function startSession({ live, settings, npc }) {
 
 async function resumeSession(saved) {
   try {
-    const { hostNet } = await import("./wl-net.js?v=20261123205517");
+    const { hostNet } = await import("./wl-net.js?v=20261123205959");
     const net = await hostNet(CONFIG);
     if (!(await net.resumeGame(saved.code))) throw new Error("this game is no longer available");
     G = Object.assign(saved, { net, live: true, paused: false });

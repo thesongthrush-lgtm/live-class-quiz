@@ -2,7 +2,7 @@
 // in-browser stand-in for test mode, and a hybrid where real phones and NPCs play together.
 // Live games live under wl/{code} in the shared Firebase project.
 
-import { pick, randomNick, randomEmoji } from "../../js/common.js?v=20261123205517";
+import { pick, randomNick, randomEmoji } from "../../js/common.js?v=20261123205959";
 
 const SDK = "https://www.gstatic.com/firebasejs/10.12.2/";
 let fb = null;

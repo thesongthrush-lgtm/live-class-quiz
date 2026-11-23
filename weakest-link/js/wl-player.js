@@ -1,7 +1,7 @@
 // Weakest Link: the student phone screen. Phones only ever show numbers (1, 2, 3),
 // never the question or option text, so translation apps can't help.
-import { el, EMOJIS, randomNick, randomEmoji, clean, storageGet, storageSet } from "../../js/common.js?v=20261123205517";
-import { money } from "./wl-rules.js?v=20261123205517";
+import { el, EMOJIS, randomNick, randomEmoji, clean, storageGet, storageSet } from "../../js/common.js?v=20261123205959";
+import { money } from "./wl-rules.js?v=20261123205959";
 
 export function mountPlayer(root, net, opts = {}) {
   const code = opts.code;

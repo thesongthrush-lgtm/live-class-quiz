@@ -1,6 +1,6 @@
 // The student phone screen. Works with either transport (live or simulated).
-import { applyTheme } from "./theme.js?v=20261123205517";
-import { el, EMOJIS, randomNick, randomEmoji, clean, fmt, POWERUPS, storageGet, storageSet } from "./common.js?v=20261123205517";
+import { applyTheme } from "./theme.js?v=20261123205959";
+import { el, EMOJIS, randomNick, randomEmoji, clean, fmt, POWERUPS, storageGet, storageSet } from "./common.js?v=20261123205959";
 
 const KEY_ROWS = ["QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"];
 const add = (t, c) => t.length < 30 ? t + c : t;
