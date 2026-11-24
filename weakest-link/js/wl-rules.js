@@ -1,16 +1,12 @@
-// Pure game rules for Weakest Link (no DOM, no network), so they can be tested on their own.
+// Pure game rules for Last One Standing (no DOM, no network), so they can be tested on their own.
 
 export const DEFAULT_CHAIN = [20, 50, 100, 200, 300, 450, 600, 800, 1000];
 export const CURRENCIES = ["€", "£", "$", "pts"];
 export const DEFAULTS = {
   rounds: 3, bankSecs: 5, answerSecs: 20, voteSecs: 30, roundSecs: 0 /* 0 = auto */,
   chain: DEFAULT_CHAIN, currency: "€", autoNext: true, votesOnTV: false,
-  h2hQuestions: 5, detectivePoints: 100,
+  detectivePoints: 100,
 };
-// Finalist score weighting (Neill's choice): 60% banked credit, 40% Detective points.
-export const W_CREDIT = 0.6, W_DETECTIVE = 0.4;
-// Weakest-link score: share of wrong answers counts more than slowness.
-export const W_WRONG = 0.7, W_TIME = 0.3;
 
 export function money(n, cur = "€") {
   const s = Math.round(n || 0).toLocaleString("en-IE");
@@ -52,15 +48,20 @@ export function validateGame(g) {
   return errs;
 }
 
-// stats: { uid: { turns, wrong, time } } for one round (time = total seconds used).
-// Returns { scores: {uid: 0..1}, weakest: [uids] }. Ties (to 3 decimals) are all weakest.
+// A player's overall performance: money they helped bank minus money lost on their wrong answers.
+export const perf = p => (p && (p.credit || 0) - (p.lost || 0)) || 0;
+
+// stats: { uid: { turns, wrong, time, banked, lost } } for one round.
+// Only used to give the NPCs a realistic idea of who played worst; the class's votes decide.
 export function weakestLink(stats, answerSecs) {
   const scores = {};
+  const swing = Math.max(1, ...Object.values(stats).map(s => Math.abs((s.lost || 0) - (s.banked || 0))));
   for (const [uid, s] of Object.entries(stats)) {
     if (!s || !s.turns) continue;
     const wrongRate = s.wrong / s.turns;
     const slow = Math.min(1, (s.time / s.turns) / answerSecs);
-    scores[uid] = Math.round((W_WRONG * wrongRate + W_TIME * slow) * 1000) / 1000;
+    const money = ((s.lost || 0) - (s.banked || 0)) / swing;   // -1 (banked a lot) … 1 (lost a lot)
+    scores[uid] = Math.round((0.5 * wrongRate + 0.2 * slow + 0.3 * (money + 1) / 2) * 1000) / 1000;
   }
   const vals = Object.values(scores);
   if (!vals.length) return { scores, weakest: [] };
@@ -68,41 +69,52 @@ export function weakestLink(stats, answerSecs) {
   return { scores, weakest: Object.keys(scores).filter(u => scores[u] === top) };
 }
 
-// players: { uid: { credit, detective, correct, answered, time } }.
-// Both parts are scaled so the class's best = 100, then weighted 60/40.
-export function finalistScores(players) {
-  const ids = Object.keys(players);
-  const maxC = Math.max(0, ...ids.map(u => players[u].credit || 0));
-  const maxD = Math.max(0, ...ids.map(u => players[u].detective || 0));
-  const out = ids.map(u => {
-    const p = players[u];
-    const c = maxC ? (p.credit || 0) / maxC * 100 : 0, d = maxD ? (p.detective || 0) / maxD * 100 : 0;
-    return { uid: u, creditPct: c, detectivePct: d, score: Math.round((W_CREDIT * c + W_DETECTIVE * d) * 10) / 10,
-      correct: p.correct || 0, avgTime: p.answered ? p.time / p.answered : 99, tie: Math.random() };
-  });
-  // Ties: more correct answers, then faster average time, then a coin toss.
-  out.sort((a, b) => b.score - a.score || b.correct - a.correct || a.avgTime - b.avgTime || a.tie - b.tie);
+// The class's votes decide the weakest link. A tie goes to the player with the lower
+// banked-minus-lost this round, then overall, then a coin toss.
+// votes: { voter: target }, cands: [uids], roundPerf / overallPerf: { uid: number }.
+export function voteResult(votes, cands, roundPerf = {}, overallPerf = {}) {
+  const counts = Object.fromEntries(cands.map(u => [u, 0]));
+  for (const t of Object.values(votes)) if (t in counts) counts[t]++;
+  const top = Math.max(0, ...Object.values(counts));
+  const tied = cands.filter(u => counts[u] === top);
+  const order = tied.map(u => ({ u, r: roundPerf[u] || 0, o: overallPerf[u] || 0, x: Math.random() }))
+    .sort((a, b) => a.r - b.r || a.o - b.o || a.x - b.x);
+  return { weakest: order.length ? order[0].u : null, counts, tie: tied.length > 1 };
+}
+
+// ---------------------------------------------------------------- sudden death
+// ranked: uids best first. Neighbours play each other; with an odd number the last
+// three form a trio. A trio, and the very last pair, always knock out exactly one player.
+export function pairUp(ranked) {
+  const n = ranked.length, out = [];
+  if (n < 2) return out;
+  let i = 0;
+  while (n - i >= 2) {
+    if (n - i === 3) { out.push({ uids: ranked.slice(i, i + 3), oneOut: true }); i += 3; }
+    else { out.push({ uids: ranked.slice(i, i + 2), oneOut: n === 2 }); i += 2; }
+  }
   return out;
 }
 
-// Head-to-head: a/b are arrays of true/false (answers so far), n = questions each.
-// Returns "a" | "b" | null (not decided yet) | "tie" (all asked, level).
-export function h2hDecided(a, b, n) {
-  const sa = a.filter(Boolean).length, sb = b.filter(Boolean).length;
-  const leftA = n - a.length, leftB = n - b.length;
-  if (sa > sb + leftB) return "a";
-  if (sb > sa + leftA) return "b";
-  if (!leftA && !leftB) return sa === sb ? "tie" : sa > sb ? "a" : "b";
-  return null;
-}
-
-// Tie-break: both answer the same question; fastest correct answer wins.
-// ans: { uid: { correct, t } }. Returns winner uid or null (ask another).
-export function tiebreakWinner(ans, a, b) {
-  const A = ans[a], B = ans[b];
-  const okA = A && A.correct, okB = B && B.correct;
-  if (okA && okB) return A.t <= B.t ? a : b;
-  if (okA) return a;
-  if (okB) return b;
-  return null;
+// One question for one match. res: { uid: { correct, t } } (t = answer time, Infinity if none).
+// Returns { out: [uids], replay: [uids] | null } — replay players answer a fresh question.
+export const NEAR_MS = 300;
+export function resolveMatch(m, res, near = NEAR_MS) {
+  const ok = m.uids.filter(u => res[u] && res[u].correct);
+  const bad = m.uids.filter(u => !ok.includes(u));
+  const byTime = ok.slice().sort((a, b) => res[a].t - res[b].t);
+  const slowest = () => {
+    const last = byTime[byTime.length - 1];
+    const near2 = byTime.filter(u => res[last].t - res[u].t < near);
+    return near2.length > 1 ? { out: [], replay: near2 } : { out: [last], replay: null };
+  };
+  if (m.oneOut) {
+    if (bad.length === 1) return { out: bad, replay: null };
+    if (bad.length === 0) return slowest();
+    return { out: [], replay: bad };                // two or more wrong: only they go again
+  }
+  // An ordinary pair.
+  if (ok.length === 1) return { out: bad, replay: null };
+  if (ok.length === 0) return { out: bad, replay: null };   // both wrong: both out
+  return slowest();
 }

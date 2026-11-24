@@ -1,8 +1,9 @@
-// Weakest Link transports. Same idea as Rapidiom's: a live Firebase transport, an
+// Last One Standing transports. Same idea as Rapidiom's: a live Firebase transport, an
 // in-browser stand-in for test mode, and a hybrid where real phones and NPCs play together.
 // Live games live under wl/{code} in the shared Firebase project.
 
-import { pick, randomNick, randomEmoji } from "../../js/common.js?v=20261124112047";
+import { pick, randomEmoji } from "../../js/common.js?v=20261124190320";
+import { nameMaker } from "./wl-names.js?v=20261124190320";
 
 const SDK = "https://www.gstatic.com/firebasejs/10.12.2/";
 let fb = null;
@@ -130,9 +131,10 @@ export function hybridHost(live, hub) {
 // ---------------------------------------------------------------- NPC bots
 const SKILL = { weak: 0.45, average: 0.68, strong: 0.88 };
 const usedNames = new Set(), usedEmojis = new Set();
+const botName = nameMaker();
 function uniqueProfile() {
-  let name = randomNick(), emoji = randomEmoji(), g = 0;
-  while (usedNames.has(name) && g++ < 50) name = randomNick();
+  let name = botName(), emoji = randomEmoji(), g = 0;
+  while (usedNames.has(name) && g++ < 50) name = botName();
   g = 0; while (usedEmojis.has(emoji) && g++ < 50) emoji = randomEmoji();
   usedNames.add(name); usedEmojis.add(emoji);
   return { name, emoji };

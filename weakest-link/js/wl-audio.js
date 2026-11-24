@@ -1,6 +1,6 @@
-// Weakest Link music and sound effects, synthesised in the browser.
+// Last One Standing music and sound effects, synthesised in the browser.
 // Builds on the shared audio engine; nothing here changes Rapidiom's sounds.
-import { registerSongs, audioKit, sfx as base } from "../../js/audio.js?v=20261124112047";
+import { registerSongs, audioKit, sfx as base } from "../../js/audio.js?v=20261124190320";
 
 const rnd = (a, b) => a + Math.random() * (b - a);
 
@@ -157,6 +157,23 @@ export const wlSfx = {
     boom(k, t, 1); cymbal(k, t, 0.24, 2.6); base.fanfare(true);
     [1046, 1318, 1568, 2093].forEach((f, i) => bell(k, t + 0.6 + i * 0.12, f, 0.06, 1.6));
     setTimeout(() => base.applause(4), 700);
+  },
+  // A spotlight snapping on: a deep thump and a bright shimmer.
+  spotlight() { const k = audioKit(); if (!k) return; const t = k.t(); boom(k, t, 0.8); k.noise(k.sfxBus, t, { d: 0.6, vol: 0.08, type: "bandpass", f: 6000, q: 3 }); bell(k, t + 0.05, 1568, 0.06, 1.2); stab(k, t, [57, 64, 69, 73], 0.9, 0.05); },
+  // The lights go down at the end of a round: a power-down sweep.
+  lightsOut() {
+    const k = audioKit(); if (!k) return; const t = k.t();
+    k.tone(k.sfxBus, t, { type: "sawtooth", f: 220, f2: 38, a: 0.01, d: 1.1, vol: 0.12, filter: 900 });
+    k.tone(k.sfxBus, t, { type: "sine", f: 90, f2: 30, d: 1.2, vol: 0.35 });
+    k.noise(k.sfxBus, t, { d: 0.9, vol: 0.1, type: "lowpass", f: 1800, f2: 120 });
+    k.kick(k.sfxBus, t + 0.02, 0.7);
+  },
+  // Sudden death: a player is knocked out.
+  eliminate() {
+    const k = audioKit(); if (!k) return; const t = k.t();
+    boom(k, t, 0.9);
+    [55, 54].forEach((m, i) => k.tone(k.sfxBus, t + 0.05 + i * 0.22, { type: "sawtooth", f: k.hz(m - 12), a: 0.01, d: 0.4, vol: 0.12, filter: 1100, q: 2 }));
+    k.noise(k.sfxBus, t, { d: 0.3, vol: 0.14, f: 2600 });
   },
   pause() { base.pause(); },
   blip() { base.blip(); },

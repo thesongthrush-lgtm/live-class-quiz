@@ -1,12 +1,12 @@
-// Weakest Link: teacher / TV screen and game engine.
-import { el, clean, makeCode, shuffle, pick, decodeGame, storageGet, storageSet } from "../../js/common.js?v=20261124112047";
-import { playMusic, stopMusic, setIntensity, setTempo, sfx, audioPrefs, setPref, unlock } from "../../js/audio.js?v=20261124112047";
-import { wlSfx as W } from "./wl-audio.js?v=20261124112047";
-import { confetti, confettiRain } from "../../js/fx.js?v=20261124112047";
-import { SimHub, makeBots, hybridHost } from "./wl-net.js?v=20261124112047";
-import { mountPlayer, ringEl, RING_C } from "./wl-player.js?v=20261124112047";
-import * as R from "./wl-rules.js?v=20261124112047";
-import { SAMPLES } from "./wl-samples.js?v=20261124112047";
+// Last One Standing: teacher / TV screen and game engine.
+import { el, clean, makeCode, shuffle, pick, decodeGame, storageGet, storageSet } from "../../js/common.js?v=20261124190320";
+import { playMusic, stopMusic, setIntensity, setTempo, sfx, audioPrefs, setPref, unlock } from "../../js/audio.js?v=20261124190320";
+import { wlSfx as W } from "./wl-audio.js?v=20261124190320";
+import { confetti, confettiRain } from "../../js/fx.js?v=20261124190320";
+import { SimHub, makeBots, hybridHost } from "./wl-net.js?v=20261124190320";
+import { mountPlayer, ringEl, RING_C } from "./wl-player.js?v=20261124190320";
+import * as R from "./wl-rules.js?v=20261124190320";
+import { SAMPLES } from "./wl-samples.js?v=20261124190320";
 
 const app = document.getElementById("app");
 const CONFIG = window.FIREBASE_CONFIG || null;
@@ -28,16 +28,39 @@ function moodNow() {
   if (ph === "bank") return "bank";
   if (ph === "answer") {
     if (c && c.locked) return "bank";
-    if (left < 5500 || (!c.h2h && G.roundLeft <= 15000)) return "danger";
-    return c && c.h2h ? "final" : "play";
+    if (left < 5500 || (!c.sd && G.roundLeft <= 15000)) return "danger";
+    return c && c.sd ? "final" : "play";
   }
-  if (ph === "result") { const r = c && c.res[c.uid]; return c && c.tb ? (c.winner ? "good" : "bad") : r && r.correct ? "good" : "bad"; }
+  if (ph === "result") { const r = c && c.res[c.uid]; return r && r.correct ? "good" : "bad"; }
   if (ph === "countdown") return "play";
+  if (ph === "roundEnd") return "dark";
   if (ph === "vote" || ph === "voteDone") return "vote";
-  if (ph === "finalists") return "final";
+  if (ph === "sdPairs" || ph === "sdResult") return "final";
   if (ph === "end") return "win";
   return "";
 }
+
+// Timed sequences (round start and end). Clicking the stage skips to the end.
+function seq(steps) {
+  const tok = G.seqTok = (G.seqTok || 0) + 1;
+  G.seqEnd = Date.now() + Math.max(0, ...steps.map(s => s[0]));
+  steps.forEach(([ms, fn]) => setTimeout(() => { if (G && G.seqTok === tok) fn(); }, ms));
+}
+function skipSeq() {
+  if (!G || !(G.seqEnd > Date.now())) return;
+  G.seqTok++; G.seqEnd = 0; render();
+}
+
+// Full screen for the TV.
+const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement;
+function toggleFS() {
+  const d = document.documentElement;
+  if (!fsEl()) { const f = d.requestFullscreen || d.webkitRequestFullscreen; if (f) Promise.resolve(f.call(d)).catch(() => {}); }
+  else { const f = document.exitFullscreen || document.webkitExitFullscreen; if (f) Promise.resolve(f.call(document)).catch(() => {}); }
+}
+const fsLabel = () => fsEl() ? "🗗 Exit full screen" : "⛶ Full screen";
+const fsButton = () => el("button", { class: "btn ghost sm fsbtn", title: "Full screen (F)", text: fsLabel(), onclick: toggleFS });
+["fullscreenchange", "webkitfullscreenchange"].forEach(ev => document.addEventListener(ev, () => document.querySelectorAll(".fsbtn").forEach(b => { b.textContent = fsLabel(); })));
 
 // ============================================================ setup
 async function init() {
@@ -121,7 +144,7 @@ function renderSetup() {
     if (!chain) { toast("The money chain needs 3–15 amounts, e.g. 20, 50, 100, 200…"); return null; }
     const s = { rounds: clamp(rounds, 1, 10, 3), bankSecs: clamp(bankS, 3, 15, 5), answerSecs: clamp(ansS, 8, 90, 20), voteSecs: clamp(voteS, 10, 90, 30),
       roundSecs: Number(roundLen.value) || 0, chain, currency: cur.value, autoNext: autoNext.checked, votesOnTV: votesTV.checked,
-      h2hQuestions: R.DEFAULTS.h2hQuestions, detectivePoints: R.DEFAULTS.detectivePoints };
+      detectivePoints: R.DEFAULTS.detectivePoints };
     storageSet("wl.settings", s);
     return s;
   };
@@ -129,11 +152,11 @@ function renderSetup() {
 
   const results = storageGet("wl.results", []);
   app.append(
-    el("header", { class: "topbar" }, brand(), el("div", { class: "row" }, el("span", { class: "muted small" }, CONFIG ? "Live games ready" : "Test mode only"), soundControls())),
+    el("header", { class: "topbar" }, brand(), el("div", { class: "row" }, el("span", { class: "muted small" }, CONFIG ? "Live games ready" : "Test mode only"), soundControls(), fsButton())),
     el("main", { class: "setup-grid" },
       el("section", { class: "panel" }, el("h2", null, "1 · Choose the questions"),
         BUILDER_URL ? el("a", { class: "btn big ai-link", href: BUILDER_URL, target: "_blank", rel: "noopener" }, "✨ Create questions with AI") : null,
-        BUILDER_URL ? el("p", { class: "muted small" }, "Opens the Weakest Link Builder in Claude. When the questions are ready, press ▶ Play there to open them here.") : null,
+        BUILDER_URL ? el("p", { class: "muted small" }, "Opens the question builder in Claude. When the questions are ready, press ▶ Play there to open them here.") : null,
         chosen, list,
         el("div", { class: "row wrap" }, el("button", { class: "btn ghost sm", text: "📂 Load file", onclick: () => fileIn.click() }),
           ...SAMPLES.map(s => el("button", { class: "btn ghost sm", text: "✨ Sample: " + s.title, onclick: () => { pending = saveGame(structuredClone(s)); renderSetup(); } }))),
@@ -155,23 +178,24 @@ function renderSetup() {
         ...results.slice(0, 10).map(r => el("div", { class: "gitem" }, el("div", null, el("b", null, r.title), el("div", { class: "muted small" }, new Date(r.at).toLocaleString("en-IE"))),
           el("button", { class: "btn ghost sm", text: "View breakdown", onclick: () => showBreakdown(r) })))) : null));
 }
-const brand = (t) => el("h1", { class: "brand" }, el("span", { class: "logo" }, "🔗"), el("b", null, t || "Weakest Link"));
+const GAME_NAME = "Last One Standing";
+const brand = (t) => el("h1", { class: "brand" }, el("span", { class: "logo" }, "⚡"), el("b", null, t || GAME_NAME));
 const field = (label, input) => el("label", { class: "field" }, el("span", null, label), input);
 
 // ============================================================ session
 async function startSession({ live, settings, npc }) {
   const game = structuredClone(pending);
   G = {
-    live, settings, title: game.title || "Weakest Link", game, level: game.level || "",
+    live, settings, title: game.title || GAME_NAME, game, level: game.level || "",
     pool: shuffle(game.questions).map(R.prepare), qPtr: 0, reused: false,
     players: {}, order: [], turnPtr: 0, turnN: 0,
     round: 0, phase: "lobby", pot: 0, roundBanked: 0, chainIdx: -1, roundStats: {}, roundLeft: 0, roundTotal: 0,
-    timeUp: false, roundMaxed: false, rounds: [], cur: null, vote: null, final: null, paused: false,
+    timeUp: false, roundMaxed: false, rounds: [], cur: null, vote: null, final: null, sd: null, paused: false,
     code: null, net: null,
   };
   if (live) {
     try {
-      const { hostNet } = await import("./wl-net.js?v=20261124112047");
+      const { hostNet } = await import("./wl-net.js?v=20261124190320");
       G.net = await hostNet(CONFIG);
       let code; for (let i = 0; i < 6; i++) { code = makeCode(); if (await G.net.codeFree(code)) break; }
       G.code = code; await G.net.createGame(code);
@@ -180,7 +204,7 @@ async function startSession({ live, settings, npc }) {
     const hub = new SimHub(); G.hub = hub;
     if (CONFIG && npc.phones) {
       try {
-        const { hostNet } = await import("./wl-net.js?v=20261124112047");
+        const { hostNet } = await import("./wl-net.js?v=20261124190320");
         const liveNet = await hostNet(CONFIG);
         let code; for (let i = 0; i < 6; i++) { code = makeCode(); if (await liveNet.codeFree(code)) break; }
         G.net = hybridHost(liveNet, hub); G.code = code; G.joinable = true;
@@ -191,7 +215,7 @@ async function startSession({ live, settings, npc }) {
     G.bots = makeBots(hub, npc.n, npc.mix, {
       answerOf: k => G && G.cur && G.cur.key === k && G.cur.q ? G.cur.q._answer : 1,
       removed: (uid, k) => G && G.cur && G.cur.key === k && G.cur.fifty ? G.cur.fifty[uid] : null,
-      weakest: () => (G && G.vote && G.vote.weakest) || [],
+      weakest: () => (G && G.vote && G.vote.hint) || [],
     });
     G.bots.forEach((b, i) => setTimeout(() => b.join(), 300 + i * (200 + Math.random() * 300)));
     G.along = npc.along;
@@ -201,12 +225,13 @@ async function startSession({ live, settings, npc }) {
 
 async function resumeSession(saved) {
   try {
-    const { hostNet } = await import("./wl-net.js?v=20261124112047");
+    const { hostNet } = await import("./wl-net.js?v=20261124190320");
     const net = await hostNet(CONFIG);
     if (!(await net.resumeGame(saved.code))) throw new Error("this game is no longer available");
     G = Object.assign(saved, { net, live: true, paused: false });
     // A turn or vote that was in progress is started again cleanly.
-    if (["bank", "answer", "result"].includes(G.phase)) { G.cur = null; G.phase = G.final ? "finalists" : "resume"; }
+    if (G.sd && ["answer", "result", "sdResult"].includes(G.phase)) { G.cur = null; G.phase = "sdPairs"; }
+    else if (["bank", "answer", "result"].includes(G.phase)) { G.cur = null; G.phase = "resume"; }
     if (G.phase === "countdown") G.phase = "roundIntro";
     if (G.phase === "vote") G.phase = "roundEnd";
     wire(); publishState(); render();
@@ -226,7 +251,7 @@ function wire() {
       const known = G.players[uid];
       if (!known) {
         G.players[uid] = { name: clean(p.name, 16) || "Player", emoji: clean(p.emoji, 8) || "🙂", kicked: !!p.kicked,
-          credit: 0, pending: 0, detective: 0, correct: 0, answered: 0, time: 0, wrong: 0, fifty: false, weakestTimes: 0, joinedRound: G.round };
+          credit: 0, lost: 0, pending: 0, detective: 0, correct: 0, answered: 0, time: 0, wrong: 0, fifty: false, weakestTimes: 0, joinedRound: G.round };
         if (G.phase !== "lobby") G.order.push(uid);
         changed = true;
         if (G.phase === "lobby") sfx.pop();
@@ -251,8 +276,11 @@ function publishState() {
   const s = { phase: G.phase, round: G.round, rounds: G.settings.rounds, cur: G.settings.currency, paused: !!G.paused, count: active().length };
   const c = G.cur;
   if (c && ["bank", "answer", "result"].includes(G.phase)) {
-    Object.assign(s, { turnKey: c.key, who: c.uids.map(u => ({ n: G.players[u].name, e: G.players[u].emoji })), h2h: !!c.h2h, tb: !!c.tb,
+    Object.assign(s, { turnKey: c.key, who: c.sd ? [] : c.uids.map(u => ({ n: G.players[u].name, e: G.players[u].emoji })), sdq: !!c.sd,
       deadline: G.deadline, duration: G.duration, chainIdx: G.chainIdx, chainVal: R.chainValue(chain(), G.chainIdx) });
+    // The next player's phone flashes "You're next!" while this turn is played.
+    const nx = !c.sd && !G.timeUp && !G.roundMaxed ? peekNext() : null;
+    if (nx && nx.uid !== c.uid) s.next = nx.uid;
     if (G.paused) s.remaining = G.remaining;
     if (G.phase !== "result" && !c.banked) s.allowed = Object.fromEntries(c.uids.map(u => [u, true]));
     if (c.banked) s.banked = c.banked;
@@ -260,7 +288,10 @@ function publishState() {
   }
   if (G.phase === "vote" && G.vote) Object.assign(s, { voteKey: G.vote.key, cands: G.vote.cands, deadline: G.deadline, duration: G.duration, remaining: G.paused ? G.remaining : null });
   if (G.phase === "voteDone" && G.vote) s.voteKey = G.vote.key;
-  if (G.final && G.final.shown) s.finalists = [G.final.a, G.final.b].map(u => ({ n: G.players[u].name, e: G.players[u].emoji }));
+  if ((G.phase === "roundIntro" || G.phase === "countdown") && G.lineup && G.lineup.length) {
+    const f = G.players[G.lineup[0]]; s.first = G.lineup[0]; s.firstWho = { n: f.name, e: f.emoji };
+  }
+  if (G.sd && ["sdPairs", "answer", "sdResult"].includes(G.phase)) s.sd = sdPublic();
   G.net.setState(JSON.parse(JSON.stringify(s))).catch(e => console.warn(e));
   persist();
 }
@@ -278,14 +309,24 @@ function roundIntro() {
   Object.assign(G, { phase: "roundIntro", chainIdx: -1, roundBanked: 0, roundStats: {}, timeUp: false, roundMaxed: false, cur: null, vote: null });
   for (const [, p] of active()) p.pending = 0;
   G.roundTotal = G.settings.roundSecs || R.autoRoundSecs(active().length, G.settings.bankSecs, G.settings.answerSecs);
-  G.roundLeft = G.roundTotal * 1000;
-  stopMusic(0.3); W.roundIntro();
+  G.roundLeft = G.roundTotal * 1000; G.roundBest = -1;
+  G.lineup = lineup();
+  stopMusic(0.3);
+  // Title slam, line-up cascade, then the first player is spotlit.
+  seq([[0, () => W.roundIntro()], [1900, () => W.sweep()], [4300, () => W.spotlight()], [5400, () => {}]]);
   publishState(); render();
+}
+// Turn order for this round, starting with whoever plays first.
+function lineup() {
+  const out = [];
+  for (let i = 0; i < G.order.length; i++) { const u = G.order[(G.turnPtr + i) % G.order.length]; if (isActive(u)) out.push(u); }
+  return out;
 }
 
 // 3, 2, 1, Go! then the first turn.
 function beginRound() {
   if (G.phase !== "roundIntro") return;
+  G.seqTok = (G.seqTok || 0) + 1; G.seqEnd = 0;
   G.phase = "countdown"; G.cdN = 3; publishState(); render(); W.count(3);
   const tok = G.cdTok = (G.cdTok || 0) + 1;
   const step = () => {
@@ -336,7 +377,10 @@ function bankDecision(yes) {
 function doBank() {
   const amount = R.chainValue(chain(), G.chainIdx);
   G.pot += amount; G.roundBanked += amount;
-  for (const [, p] of Object.entries(G.players)) { p.credit += p.pending; p.pending = 0; }
+  for (const [u, p] of Object.entries(G.players)) {
+    if (p.pending) { const st = G.roundStats[u] = G.roundStats[u] || { turns: 0, wrong: 0, time: 0, banked: 0, lost: 0 }; st.banked += p.pending; }
+    p.credit += p.pending; p.pending = 0;
+  }
   G.chainIdx = -1;
   W.bank();
   return amount;
@@ -353,7 +397,7 @@ function askQuestion() {
   c.q = drawQuestion(); c.answers = {}; c.res = {}; c.fifty = {}; c.banked = 0; c.pausedMs = 0;
   G.phase = "answer"; setTimer(G.settings.answerSecs);
   c.shownAt = G.deadline - G.duration * 1000;
-  if (!c.h2h) for (const u of c.uids) {
+  if (!c.sd) for (const u of c.uids) {
     const p = G.players[u];
     if (p.fifty) {
       p.fifty = false;
@@ -366,10 +410,13 @@ function askQuestion() {
   G.unsub = G.net.onAnswers(key, obj => {
     if (!G.cur || G.cur.key !== key || G.phase !== "answer") return;
     for (const u of G.cur.uids) if (obj[u] && !G.cur.answers[u]) G.cur.answers[u] = obj[u];
-    if (G.cur.uids.every(u => G.cur.answers[u])) lockAnswers();
+    const a = app.querySelector("#answered"); if (a) a.textContent = answeredText();
+    if (G.cur.uids.every(u => G.cur.answers[u] || !isActive(u))) lockAnswers();
   });
   publishState(); render(); sfx.whoosh();
 }
+
+const answeredText = () => `${G.cur.uids.filter(u => G.cur.answers[u]).length} / ${G.cur.uids.length} answered`;
 
 // Answer in: highlight it, hold a beat of suspense, then reveal.
 function lockAnswers() {
@@ -393,22 +440,19 @@ function resolveTurn() {
     c.res[u] = { correct, v: a ? Number(a.v) : null, secs, t: a ? a.t - c.pausedMs : Infinity };
     const p = G.players[u];
     if (p) { p.answered++; p.time += secs; if (correct) p.correct++; else p.wrong++; }
-    if (!c.h2h) {
-      const st = G.roundStats[u] = G.roundStats[u] || { turns: 0, wrong: 0, time: 0 };
+    if (!c.sd) {
+      const st = G.roundStats[u] = G.roundStats[u] || { turns: 0, wrong: 0, time: 0, banked: 0, lost: 0 };
       st.turns++; st.time += secs; if (!correct) st.wrong++;
     }
   }
+  if (c.sd) return sdResolve();
   G.phase = "result";
-  if (c.h2h) {
-    const r = c.res[c.uid];
-    if (c.tb) { c.winner = R.tiebreakWinner(c.res, G.final.a, G.final.b); c.winner ? W.correct(6) : W.chainBreak(0); }
-    else { (c.uid === G.final.a ? G.final.ra : G.final.rb).push(r.correct); r.correct ? W.correct(6) : W.chainBreak(0); }
-  } else {
+  {
     const r = c.res[c.uid];
     if (r.correct) {
       const gain = R.stepGain(chain(), G.chainIdx);
       G.players[c.uid].pending += gain;
-      G.chainIdx++;
+      G.chainIdx++; G.roundBest = Math.max(G.roundBest, G.chainIdx);
       c.gain = R.chainValue(chain(), G.chainIdx);
       c.justLit = G.chainIdx;
       W.correct(G.chainIdx);
@@ -416,6 +460,7 @@ function resolveTurn() {
     } else {
       c.lost = R.chainValue(chain(), G.chainIdx);
       c.brokeFrom = G.chainIdx;
+      if (c.lost) { G.players[c.uid].lost += c.lost; G.roundStats[c.uid].lost += c.lost; }
       W.chainBreak(G.chainIdx + 1);
       if (G.chainIdx >= 0) flash(true);
       G.chainIdx = -1;
@@ -430,8 +475,6 @@ function resolveTurn() {
 function afterResult() {
   if (G.phase !== "result") return;
   G.autoAt = null;
-  const c = G.cur;
-  if (c.h2h) return c.tb ? (c.winner ? finish(c.winner) : tiebreak()) : h2hTurn();
   if (G.roundMaxed) return endRound("max");
   nextTurn();
 }
@@ -443,20 +486,28 @@ function endRound(reason) {
   G.chainIdx = -1;
   const st = Object.values(G.roundStats);
   const turns = st.reduce((n, s) => n + s.turns, 0), wrong = st.reduce((n, s) => n + s.wrong, 0);
-  G.rounds.push({ round: G.round, banked: G.roundBanked, lost, turns, correct: turns - wrong, reason });
+  G.rounds.push({ round: G.round, banked: G.roundBanked, lost, turns, correct: turns - wrong, reason, best: G.roundBest, potBefore: G.pot - G.roundBanked });
   G.phase = "roundEnd"; G.cur = null; G.paused = false;
-  stopMusic(0.4); setTempo(1);
-  if (reason === "max") { sfx.fanfare(true); confetti({ power: 140, colours: GOLD }); } else W.roundOver();
+  stopMusic(0.2); setTempo(1);
+  // Lights drop, "Round over" slams in, the pot counts up, then the round's figures.
+  seq([
+    [0, () => W.lightsOut()],
+    [1200, () => { if (reason === "max") { sfx.fanfare(true); confetti({ power: 140, colours: GOLD }); } else W.roundOver(); W.slam(); }],
+    [2800, () => countUp()],
+    [5000, () => W.pop()], [5600, () => W.pop()], [6200, () => W.pop()],
+    [7200, () => W.blip()],
+  ]);
   publishState(); render();
 }
 
 // ============================================================ voting
 function startVote() {
   const stats = Object.fromEntries(Object.entries(G.roundStats).filter(([u]) => isActive(u)));
-  const wl = R.weakestLink(stats, G.settings.answerSecs);
+  // hint: only the NPCs use this, to vote realistically. The class's votes decide.
+  const hint = R.weakestLink(stats, G.settings.answerSecs).weakest;
   const cands = Object.fromEntries(Object.keys(stats).filter(u => stats[u].turns).map(u => [u, { n: G.players[u].name, e: G.players[u].emoji }]));
   if (Object.keys(cands).length < 2) { toast("Not enough players had a turn this round to vote."); return afterVote(); }
-  G.vote = { key: "v" + G.round, weakest: wl.weakest, scores: wl.scores, cands, votes: {} };
+  G.vote = { key: "v" + G.round, hint, cands, votes: {}, weakest: [] };
   G.phase = "vote"; setTimer(G.settings.voteSecs);
   unlisten();
   const key = G.vote.key;
@@ -479,6 +530,10 @@ function closeVote() {
   if (G.phase !== "vote") return;
   unlisten();
   const v = G.vote, last = G.round >= G.settings.rounds, pts = G.settings.detectivePoints;
+  const roundPerf = Object.fromEntries(Object.entries(G.roundStats).map(([u, st]) => [u, (st.banked || 0) - (st.lost || 0)]));
+  const overall = Object.fromEntries(Object.keys(v.cands).map(u => [u, R.perf(G.players[u])]));
+  const vr = R.voteResult(v.votes, Object.keys(v.cands), roundPerf, overall);
+  v.weakest = vr.weakest ? [vr.weakest] : []; v.counts = vr.counts;
   let right = 0;
   const fbs = [];
   for (const [u, p] of active()) {
@@ -500,56 +555,113 @@ function closeVote() {
   // Phones find out at the same moment as the TV reveal.
   setTimeout(() => { if (!G) return; fbs.forEach(([u, fb]) => G.net.setFeedback(u, fb).catch(() => {})); if (G.phase === "voteDone") { W.reveal(); render(); } }, roll * 1000);
 }
-function afterVote() { if (G.round >= G.settings.rounds) goFinalists(); else roundIntro(); }
+function afterVote() { if (G.round >= G.settings.rounds) goSuddenDeath(); else roundIntro(); }
 
-// ============================================================ the final
-function goFinalists() {
-  const pl = Object.fromEntries(active());
-  const ranked = R.finalistScores(pl);
+// ============================================================ sudden death
+// Everyone still in the game plays. Players are paired with someone of similar
+// banked-minus-lost, and every match answers the same question at the same time.
+function goSuddenDeath() {
+  const ranked = active().map(([u, p]) => ({ u, s: R.perf(p), c: p.correct, x: Math.random() }))
+    .sort((a, b) => b.s - a.s || b.c - a.c || a.x - b.x).map(r => r.u);
   stopMusic(0.3);
-  if (ranked.length < 2) { G.final = { a: ranked[0] && ranked[0].uid, b: null, ranked, ra: [], rb: [] }; return finish(G.final.a); }
-  G.final = { a: ranked[0].uid, b: ranked[1].uid, ranked, ra: [], rb: [], shown: false, tbs: 0 };
-  G.phase = "finalists"; G.cur = null;
+  G.final = {};
+  if (ranked.length < 2) return finish(ranked[0] || null);
+  G.sd = { round: 0, alive: ranked, all: ranked.slice(), outGroups: [], matches: [], reveal: null };
+  sdPairUp(true);
+}
+function sdPairUp(first) {
+  const sd = G.sd;
+  sd.alive = sd.alive.filter(isActive);
+  if (sd.alive.length < 2) return finish(sd.alive[0] || null);
+  sd.round++;
+  sd.matches = R.pairUp(sd.alive).map((m, i) => ({ id: i, uids: m.uids.slice(), start: m.uids.slice(), oneOut: m.oneOut, done: false, out: [], last: null }));
+  sd.reveal = null; sd.void = false;
+  G.phase = "sdPairs"; G.cur = null;
+  if (first) W.finalStart(); else W.sweep();
+  setTimeout(() => { if (G && G.sd && G.phase !== "end") playMusic("wlFinal"); }, first ? 1000 : 0);
   publishState(); render();
 }
-function revealFinalists() {
-  if (G.rolling) return;
-  const roll = W.drumroll(2.6) || 2.6;
-  G.rolling = true; render();
-  setTimeout(() => {
-    if (!G || !G.final) return;
-    G.rolling = false; G.final.shown = true; W.finalists(); flash(); confetti({ power: 110, colours: GOLD });
-    for (const [u] of active()) G.net.setFeedback(u, { finalist: u === G.final.a || u === G.final.b }).catch(() => {});
-    publishState(); render();
-  }, roll * 1000);
-}
-function h2hTurn() {
-  const f = G.final, n = G.settings.h2hQuestions;
-  const d = R.h2hDecided(f.ra, f.rb, n);
-  if (d === "a" || d === "b") return finish(f[d]);
-  if (d === "tie") return tiebreak();
-  const uid = f.ra.length <= f.rb.length ? f.a : f.b;
-  if (G.phase === "finalists") { W.finalStart(); setTimeout(() => { if (G && G.final && !G.final.winner) playMusic("wlFinal"); }, 900); }
-  G.cur = { key: "t" + (++G.turnN), uids: [uid], uid, h2h: true };
+function sdAsk() {
+  const sd = G.sd;
+  if (G.phase !== "sdPairs" && G.phase !== "sdResult") return;
+  const live = sd.matches.filter(m => !m.done);
+  if (!live.length) return sdPairUp();
+  const uids = live.flatMap(m => m.uids).filter(isActive);
+  if (!uids.length) return sdPairUp();
+  sd.reveal = null; sd.void = false;
+  G.cur = { key: "t" + (++G.turnN), uids, uid: uids[0], sd: true };
   askQuestion();
 }
-function tiebreak() {
-  const f = G.final; f.tbs++;
-  G.cur = { key: "t" + (++G.turnN), uids: [f.a, f.b], uid: f.a, h2h: true, tb: true };
-  if (f.tbs === 1) toast("It's a tie! Both finalists answer the same question: the fastest correct answer wins.");
-  askQuestion();
+function sdResolve() {
+  const c = G.cur, sd = G.sd;
+  const live = sd.matches.filter(m => !m.done);
+  const outcomes = live.map(m => ({ m, r: R.resolveMatch(m, c.res) }));
+  const outAll = outcomes.flatMap(o => o.r.out);
+  // If nobody at all would be left standing, everyone goes again.
+  sd.void = sd.alive.every(u => outAll.includes(u));
+  for (const { m, r } of outcomes) {
+    const played = m.uids.slice();
+    if (sd.void) { m.last = { uids: played, out: [], replay: played, void: true }; continue; }
+    m.last = { uids: played, out: r.out, replay: r.replay };
+    m.out.push(...r.out);
+    if (r.replay) m.uids = r.replay;
+    else { m.done = true; m.uids = played.filter(u => !r.out.includes(u)); }
+  }
+  if (!sd.void && outAll.length) { sd.outGroups.push(outAll); sd.alive = sd.alive.filter(u => !outAll.includes(u)); }
+  G.phase = "sdResult";
+  sd.reveal = { ids: live.map(m => m.id), shown: 0 };
+  stopMusic(0.3);
+  const roll = W.drumroll(1.4) || 1.4;
+  publishState(); render();
+  const key = c.key;
+  const step = () => {
+    if (!G || !G.cur || G.cur.key !== key || G.phase !== "sdResult") return;
+    const rv = sd.reveal;
+    if (rv.shown < rv.ids.length) {
+      const m = sd.matches[rv.ids[rv.shown]]; rv.shown++;
+      if (m.last.void) W.chainBreak(0);
+      else if (m.last.out.length) { W.eliminate(); flash(true); }
+      else W.sweep();
+      publishState(); render();
+      setTimeout(step, rv.shown < rv.ids.length ? 1500 : 900);
+    } else if (sd.alive.length === 1 && sd.matches.every(m => m.done)) {
+      setTimeout(() => { if (G && G.phase === "sdResult" && G.cur && G.cur.key === key) finish(sd.alive[0]); }, 1400);
+    } else { playMusic("wlFinal"); render(); }
+  };
+  setTimeout(step, roll * 1000);
+}
+// What the phones need: each match, and its result once the TV has revealed it.
+function sdPublic() {
+  const sd = G.sd, shown = G.phase === "sdResult" && sd.reveal ? sd.reveal.ids.slice(0, sd.reveal.shown) : [];
+  const nm = u => ({ n: G.players[u].name, e: G.players[u].emoji });
+  return {
+    round: sd.round, left: sd.alive.length,
+    out: G.phase === "sdResult" ? [] : sd.all.filter(u => !sd.alive.includes(u)),
+    matches: sd.matches.map(m => ({
+      u: G.phase === "sdResult" && m.last ? m.last.uids : m.uids, done: m.done,
+      names: Object.fromEntries(m.start.map(u => [u, nm(u)])),
+      res: shown.includes(m.id) ? { out: m.last.out, replay: m.last.replay || null } : null,
+    })),
+  };
 }
 function finish(winner) {
   unlisten();
   G.phase = "end"; G.cur = null; G.final = G.final || {};
   G.final.winner = winner;
+  // Places: the champion is 1st; players knocked out later finish higher.
+  const places = {}; if (winner) places[winner] = 1;
+  let place = 2;
+  const groups = (G.sd && G.sd.outGroups) || [];
+  for (let i = groups.length - 1; i >= 0; i--) { groups[i].forEach(u => { places[u] = place; }); place += groups[i].length; }
+  G.final.places = places;
+  G.final.runnerUp = groups.length && groups[groups.length - 1].length === 1 ? groups[groups.length - 1][0] : null;
   stopMusic(0.2);
   W.winner(); flash(); confetti({ power: 180, colours: GOLD }); confettiRain(6, GOLD.concat(["#ff7aa8", "#4fb4ff", "#6fdc8f"]));
   setTimeout(() => { if (G && G.phase === "end") playMusic("wlChampion"); }, 3200);
   const pts = G.settings.detectivePoints;
   const maxD = Math.max(0, ...active().map(([, p]) => p.detective));
   G.topDetectives = maxD ? active().filter(([, p]) => p.detective === maxD).map(([u]) => u) : [];
-  for (const [u, p] of active()) G.net.setFeedback(u, { final: { champ: u === winner, finalist: u === G.final.a || u === G.final.b, credit: p.credit, detective: p.detective * pts, pot: G.pot, topDetective: G.topDetectives.includes(u), cur: G.settings.currency } }).catch(() => {});
+  for (const [u, p] of active()) G.net.setFeedback(u, { final: { champ: u === winner, finalist: places[u] === 2, place: places[u] || null, credit: p.credit, detective: p.detective * pts, pot: G.pot, topDetective: G.topDetectives.includes(u), cur: G.settings.currency } }).catch(() => {});
   saveResults();
   publishState(); render();
 }
@@ -566,28 +678,29 @@ function togglePause() {
 function addTurnTime() { if (!["bank", "answer", "vote"].includes(G.phase)) return; if (G.paused) G.remaining += 10000; else G.deadline += 10000; G.duration += 10; publishState(); render(); }
 function addRoundTime() { G.roundLeft += 30000; G.roundTotal += 30; if (G.timeUp && G.roundLeft > 0) G.timeUp = false; render(); }
 function newQuestion() { if (G.phase !== "answer" || G.cur.locked) return; unlisten(); askQuestion(); }
-function skipPlayer() { if (!["bank", "answer"].includes(G.phase) || G.cur.h2h) return; unlisten(); G.cur = null; nextTurn(); }
+function skipPlayer() { if (!["bank", "answer"].includes(G.phase) || G.cur.sd) return; unlisten(); G.cur = null; nextTurn(); }
 
 // ============================================================ results
 function breakdownData() {
-  const ranked = G.final && G.final.ranked ? Object.fromEntries(G.final.ranked.map(r => [r.uid, r.score])) : {};
+  const places = (G.final && G.final.places) || {};
   return {
-    title: G.title, at: Date.now(), pot: G.pot, cur: G.settings.currency, rounds: G.rounds,
+    v: 2, title: G.title, at: Date.now(), pot: G.pot, cur: G.settings.currency, rounds: G.rounds,
     rows: Object.entries(G.players).map(([u, p]) => ({ name: `${p.emoji} ${p.name}`, answered: p.answered, correct: p.correct,
-      avg: p.answered ? Math.round(p.time / p.answered * 10) / 10 : null, credit: p.credit, detective: p.detective, weakest: p.weakestTimes,
-      score: ranked[u] != null ? ranked[u] : null, champ: G.final && G.final.winner === u, removed: p.kicked }))
-      .sort((a, b) => (b.score || 0) - (a.score || 0)),
+      avg: p.answered ? Math.round(p.time / p.answered * 10) / 10 : null, credit: p.credit, lost: p.lost || 0, detective: p.detective, weakest: p.weakestTimes,
+      place: places[u] || null, champ: G.final && G.final.winner === u, removed: p.kicked }))
+      .sort((a, b) => (a.place || 999) - (b.place || 999) || (b.credit - b.lost) - (a.credit - a.lost)),
   };
 }
 function saveResults() { if (!G.live) return; const list = storageGet("wl.results", []); list.unshift(breakdownData()); storageSet("wl.results", list.slice(0, 20)); }
+const ordinal = n => n + (n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] || "th");
 function showBreakdown(b) {
   const money = n => R.money(n, b.cur);
   modal(el("div", null, el("h2", null, "📊 Breakdown (teacher view)"), el("p", { class: "muted" }, `${b.title} · Pot ${money(b.pot)}`),
     el("div", { class: "tablewrap" }, el("table", null,
-      el("thead", null, el("tr", null, ...["Player", "Questions", "Correct", "Avg time", "Banked credit", "Correct votes", "Weakest link", "Final score"].map(h => el("th", null, h)))),
-      el("tbody", null, ...b.rows.map(r => el("tr", { class: r.removed ? "muted" : "" }, el("td", null, (r.champ ? "🏆 " : "") + r.name), el("td", null, r.answered), el("td", null, r.correct),
-        el("td", null, r.avg == null ? "—" : r.avg + " s"), el("td", null, money(r.credit)), el("td", null, r.detective), el("td", null, r.weakest ? r.weakest + "×" : "—"), el("td", null, r.score == null ? "—" : r.score)))))),
-    el("p", { class: "muted small" }, "Final score = 60% banked credit + 40% correct votes, each scaled so the class's best is 100."),
+      el("thead", null, el("tr", null, ...["Finished", "Player", "Questions", "Correct", "Avg time", "Helped bank", "Lost", "Correct votes", "Voted weakest"].map(h => el("th", null, h)))),
+      el("tbody", null, ...b.rows.map(r => el("tr", { class: r.removed ? "muted" : "" }, el("td", null, r.place ? ordinal(r.place) : "—"), el("td", null, (r.champ ? "🏆 " : "") + r.name), el("td", null, r.answered), el("td", null, r.correct),
+        el("td", null, r.avg == null ? "—" : r.avg + " s"), el("td", null, money(r.credit)), el("td", null, r.lost == null ? "—" : money(r.lost)), el("td", null, r.detective), el("td", null, r.weakest ? r.weakest + "×" : "—")))))),
+    el("p", { class: "muted small" }, "Helped bank: money from their correct answers that the team banked. Lost: money in the chain when they answered wrongly. Sudden-death pairs were matched on helped bank minus lost."),
     el("h3", null, "Rounds"), el("ul", null, ...b.rounds.map(r => el("li", null, `Round ${r.round}: banked ${money(r.banked)}${r.lost ? `, ${money(r.lost)} lost when the round ended` : ""} · ${r.correct}/${r.turns} correct`))),
     el("button", { class: "btn", text: "Close", onclick: closeModal })), true);
 }
@@ -601,11 +714,11 @@ function topbar() {
   return el("header", { class: "topbar" },
     brand(G.title),
     el("div", { class: "row" },
-      G.round ? el("span", { class: "pill" }, G.phase === "end" || G.final && G.phase !== "voteDone" && G.phase !== "roundEnd" ? "Final" : `Round ${G.round} of ${G.settings.rounds}`) : null,
+      G.round ? el("span", { class: "pill" }, G.sd || G.phase === "end" ? "Sudden death" : `Round ${G.round} of ${G.settings.rounds}`) : null,
       el("span", { class: "pill" }, G.live || G.joinable ? "Code " : "", el("b", null, G.code)), G.hub ? el("span", { class: "pill test" }, "🤖 Test mode") : null,
       soundControls(), el("span", { class: "muted" }, `👥 ${active().length}`),
       G.phase !== "end" && (G.live || G.joinable) ? el("button", { class: "btn ghost sm", text: "📱 QR", onclick: showQR }) : null,
-      el("button", { class: "btn ghost sm", text: "👥 Players", onclick: playersModal }),
+      el("button", { class: "btn ghost sm", text: "👥 Players", onclick: playersModal }), fsButton(),
       el("button", { class: "btn ghost sm", text: "✕ End", onclick: () => confirmBox(G.phase === "end" ? "Close the game for students?" : "End this game now?", "End game", () => endGame()) })));
 }
 
@@ -617,13 +730,16 @@ function render() {
   const c = G.cur;
   // Entrance animations only play when the moment changes, not on every redraw.
   const viewKey = [G.phase, G.round, c && c.key, c && c.banked ? "b" : "", c && c.locked ? "l" : "", G.phase === "countdown" ? G.cdN : "",
-    G.rolling ? "r" : "", G.final && G.final.shown ? "s" : "", G.phase === "voteDone" && Date.now() >= (G.revealAt || 0) ? "rv" : ""].join("|");
+    G.phase === "sdResult" && G.sd.reveal ? G.sd.reveal.shown : "", G.phase === "sdResult" && G.sd.reveal && G.sd.reveal.shown >= G.sd.reveal.ids.length ? "all" : "",
+    G.phase === "voteDone" && Date.now() >= (G.revealAt || 0) ? "rv" : ""].join("|");
   const fresh = viewKey !== lastViewKey; lastViewKey = viewKey;
-  const main = el("main", { class: "stage" + (fresh ? " fresh" : "") });
+  const main = el("main", { class: "stage" + (fresh ? " fresh" : ""), onclick: e => { if (!e.target.closest("button,input,select,a")) skipSeq(); } });
   app.append(topbar(), main);
   const v = { lobby: lobbyView, roundIntro: roundIntroView, countdown: countdownView, resume: resumeView, bank: playView, answer: playView, result: playView,
-    roundEnd: roundEndView, vote: voteView, voteDone: voteDoneView, finalists: finalistsView, end: endView }[G.phase];
+    roundEnd: roundEndView, vote: voteView, voteDone: voteDoneView, sdPairs: sdPairsView, sdResult: sdResultView, end: endView }[G.phase];
   if (v) main.append(v());
+  if (G.seqEnd > Date.now() && fresh) main.append(el("div", { class: "skiphint" }, "Click to skip"));
+  if (G.phase === "roundEnd" && !(fresh && G.seqEnd > Date.now())) countUp(true);
   if (G.phase === "lobby") playMusic("wlLobby");
   if (G.hub && G.along) {
     if (keepPhone) app.append(keepPhone);
@@ -651,24 +767,28 @@ function lobbyView() {
       el("p", { class: "muted small" }, "Tap a player to rename or remove them. Late arrivals can still join during the game."),
       el("div", { class: "rules" },
         el("p", null, `🔗 ${G.settings.rounds} round${G.settings.rounds === 1 ? "" : "s"}. Answer in turn to climb the money chain. A wrong answer breaks the chain, so bank before your question!`),
-        el("p", null, "🗳 After each round, vote for the weakest link. A correct vote earns Detective points. Nobody is eliminated."),
-        el("p", null, "🏆 The top two go head-to-head in the final.")),
+        el("p", null, "🗳 After each round, everyone votes in secret for the weakest link. Vote with the class to earn Detective points. Nobody is out yet!"),
+        el("p", null, "⚡ The final is sudden death: everyone plays in pairs, and the last one standing wins.")),
       el("button", { class: "btn gold big", disabled: !ps.length, text: "Start the game →", onclick: startGame })));
 }
 
 const mmss = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 function roundIntroView() {
   const last = G.round === G.settings.rounds && G.settings.rounds > 1;
-  return el("div", { class: "center-view" },
-    el("div", { class: "eyebrow big" }, last ? "Last round" : "Get ready"),
-    el("h2", { class: "huge shine" }, "Round"),
-    el("div", { class: "roundno" }, String(G.round)),
-    el("div", { class: "infopills" },
+  const lu = G.lineup || [];
+  const first = lu[0] ? G.players[lu[0]] : null;
+  return el("div", { class: "center-view intro" },
+    el("div", { class: "introflash" }),
+    el("div", { class: "eyebrow big i1" }, last ? "Last round" : "Get ready"),
+    el("div", { class: "titleslam" }, el("span", { class: "rw" }, "Round"), el("span", { class: "rn" }, String(G.round)), el("i", { class: "lightsweep" })),
+    el("div", { class: "infopills i2" },
       el("span", { class: "pill" }, `⏱ ${mmss(G.roundTotal)} on the clock`),
       el("span", { class: "pill" }, `🔗 Chain up to ${M(chain()[chain().length - 1])}`),
       G.pot ? el("span", { class: "pill gold" }, `💰 Pot so far: ${M(G.pot)}`) : null),
-    G.round > 1 ? el("p", { class: "muted" }, "Last round's weakest link has a 50:50 on their phone for their first question.") : null,
-    el("button", { class: "btn gold big", text: `▶ Start round ${G.round}`, onclick: beginRound }));
+    first ? el("div", { class: "firstup" }, el("div", { class: "cone" }), el("div", { class: "eyebrow big" }, "First up"), el("div", { class: "fname" }, `${first.emoji} ${first.name}`)) : null,
+    lu.length > 1 ? el("div", { class: "lineup" + (lu.length > 14 ? " many" : "") }, ...lu.map((u, i) => el("div", { class: "lp" + (i === 0 ? " first" : ""), style: { "--i": i } }, el("b", null, i + 1), `${G.players[u].emoji} ${G.players[u].name}`))) : null,
+    G.round > 1 ? el("p", { class: "muted i3" }, "Last round's weakest link has a 50:50 on their phone for their first question.") : null,
+    el("button", { class: "btn gold big i4", text: `▶ Start round ${G.round}`, onclick: beginRound }));
 }
 function countdownView() {
   return el("div", { class: "center-view" }, el("div", { class: "countdown" + (G.cdN <= 0 ? " go" : "") }, G.cdN > 0 ? String(G.cdN) : "GO!"));
@@ -701,7 +821,7 @@ const timerRing = cls => ringEl("js-ring " + (cls || ""));
 
 function playView() {
   const c = G.cur;
-  if (c && c.h2h) return h2hView();
+  if (c && c.sd) return sdPlayView();
   const p = G.players[c.uid] || { name: "?", emoji: "" };
   const nx = peekNext();
   let body;
@@ -733,7 +853,7 @@ function playView() {
 function questionBlock(c, reveal) {
   const q = c.q;
   const asking = G.phase === "answer" && !c.locked;
-  const picks = c.locked && !reveal ? Object.values(c.answers || {}).map(a => Number(a.v)) : [];
+  const picks = c.locked && !reveal && !c.sd ? Object.values(c.answers || {}).map(a => Number(a.v)) : [];
   return el("div", { class: "qblock" },
     el("div", { class: "qtext" + (asking ? " asking" : "") + ((q.prompt || "").length > 70 ? " long" : "") }, q.prompt),
     q.sub ? el("div", { class: "qsub" }, q.sub) : null,
@@ -746,14 +866,13 @@ function questionBlock(c, reveal) {
 
 function resultBanner(c) {
   const b = resultLine(c);
-  if (c.q && c.q.explanation && !c.tb) b.append(el("div", { class: "explain" }, "💬 " + c.q.explanation));
+  if (c.q && c.q.explanation) b.append(el("div", { class: "explain" }, "💬 " + c.q.explanation));
   return b;
 }
 function resultLine(c) {
   const r = c.res[c.uid];
-  if (c.h2h && c.tb) return el("div", { class: "banner " + (c.winner ? "ok" : "bad") }, c.winner ? `⚡ ${pname(c.winner)} was fastest!` : "Nobody got it. Another question…", nextBtn());
-  if (r.correct) return el("div", { class: "banner ok" }, c.maxed ? `🎉 Correct! ${M(c.maxed)} banked: the chain is complete!` : c.h2h ? "✅ Correct!" : `✅ Correct! The chain is at ${M(c.gain)}`, nextBtn());
-  return el("div", { class: "banner bad" }, r.v == null ? "⌛ Time's up!" : "❌ Not quite.", !c.h2h && c.lost ? ` ${M(c.lost)} lost from the chain.` : "", nextBtn());
+  if (r.correct) return el("div", { class: "banner ok" }, c.maxed ? `🎉 Correct! ${M(c.maxed)} banked: the chain is complete!` : `✅ Correct! The chain is at ${M(c.gain)}`, nextBtn());
+  return el("div", { class: "banner bad" }, r.v == null ? "⌛ Time's up!" : "❌ Not quite.", c.lost ? ` ${M(c.lost)} lost from the chain.` : "", nextBtn());
 }
 function nextBtn() { return G.settings.autoNext && !G.paused ? null : el("button", { class: "btn sm", text: "Next →", onclick: afterResult }); }
 
@@ -763,22 +882,43 @@ function controls() {
   return el("div", { class: "controls" },
     el("button", { class: "btn ghost sm", text: G.paused ? "▶ Resume" : "⏸ Pause", onclick: togglePause }),
     el("button", { class: "btn ghost sm", text: "+10 s", onclick: addTurnTime }),
-    !c.h2h ? el("button", { class: "btn ghost sm", text: "+30 s round", onclick: addRoundTime }) : null,
+    !c.sd ? el("button", { class: "btn ghost sm", text: "+30 s round", onclick: addRoundTime }) : null,
     ph === "answer" ? el("button", { class: "btn ghost sm", text: "🔄 New question", onclick: newQuestion }) : null,
-    !c.h2h ? el("button", { class: "btn ghost sm", text: "⏭ Skip player", onclick: skipPlayer }) : null,
-    !c.h2h ? el("button", { class: "btn ghost sm", text: "⏹ End round", onclick: () => confirmBox("End this round now? Money in the chain that isn't banked will be lost.", "End round", () => endRound("teacher")) }) : null);
+    !c.sd ? el("button", { class: "btn ghost sm", text: "⏭ Skip player", onclick: skipPlayer }) : null,
+    !c.sd ? el("button", { class: "btn ghost sm", text: "⏹ End round", onclick: () => confirmBox("End this round now? Money in the chain that isn't banked will be lost.", "End round", () => endRound("teacher")) }) : null);
 }
 
 function roundEndView() {
   const r = G.rounds[G.rounds.length - 1];
-  const reason = { max: "🎉 Chain complete!", time: "⏰ Time's up!", teacher: "Round over", empty: "Round over" }[r.reason] || "Round over";
-  return el("div", { class: "center-view" },
-    el("div", { class: "eyebrow big" }, reason),
-    el("h2", { class: "huge" }, `Round ${r.round} complete`),
-    el("div", { class: "statrow" },
-      stat("Banked this round", M(r.banked), "gold"), r.lost ? stat("Lost (not banked)", M(r.lost), "bad") : null,
-      stat("Correct answers", `${r.correct} / ${r.turns}`), stat("Pot", M(G.pot), "gold")),
-    el("button", { class: "btn big", text: "🗳 Vote for the weakest link", onclick: startVote }));
+  const reason = { max: "🎉 Chain complete!", time: "⏰ Time's up!" }[r.reason] || "🔔 Stop the clock!";
+  return el("div", { class: "center-view roundend" },
+    el("div", { class: "lightsdrop" }),
+    el("div", { class: "eyebrow big e1" }, reason),
+    el("div", { class: "titleslam over" }, el("span", { class: "rw" }, `Round ${r.round}`), el("span", { class: "rn" }, "Over"), el("i", { class: "lightsweep" })),
+    el("div", { class: "potreveal e2" }, el("div", { class: "eyebrow" }, "The pot"),
+      el("b", { class: "js-count", "data-from": r.potBefore != null ? r.potBefore : G.pot - r.banked, "data-to": G.pot }, M(G.pot)),
+      el("div", { class: "plus" }, r.banked ? `+ ${M(r.banked)} banked this round` : "Nothing banked this round")),
+    el("div", { class: "statrow late" },
+      stat("Correct answers", `${r.correct} / ${r.turns}`),
+      stat("Lost (not banked)", M(r.lost || 0), r.lost ? "bad" : ""),
+      stat("Longest chain", r.best != null && r.best >= 0 ? M(chain()[r.best]) : "—", "gold")),
+    el("button", { class: "btn big e3", text: "🗳 Vote for the weakest link", onclick: startVote }));
+}
+// The pot ticks up from its old total to the new one.
+function countUp(instant) {
+  const b = app.querySelector(".js-count"); if (!b || !G) return;
+  const from = Number(b.dataset.from) || 0, to = Number(b.dataset.to) || 0;
+  if (instant || from === to) { b.textContent = M(to); return; }
+  const t0 = performance.now(), dur = 1900, tok = G.seqTok;
+  let lastTick = 0;
+  const f = t => {
+    if (!G || G.seqTok !== tok || !b.isConnected) return;
+    const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+    b.textContent = M(from + (to - from) * e);
+    if (t - lastTick > 110 && k < 1) { lastTick = t; W.bankTick(); }
+    if (k < 1) requestAnimationFrame(f); else { b.classList.add("done"); W.bank(); }
+  };
+  b.textContent = M(from); requestAnimationFrame(f);
 }
 const stat = (label, value, cls) => el("div", { class: "stat " + (cls || "") }, el("div", { class: "eyebrow" }, label), el("b", null, value));
 const plates = (list, cls) => el("div", { class: "plates " + (cls || "") }, cls && cls.includes("dim") ? null : el("div", { class: "sweeplight" }), ...list.map(([, p]) => el("div", { class: "plate" }, `${p.e || p.emoji} ${p.n || p.name}`)));
@@ -789,7 +929,7 @@ function voteView() {
     el("div", { class: "eyebrow big" }, "🤫 Secret vote"),
     el("h2", { class: "huge" }, "Who was the weakest link?"),
     plates(Object.entries(G.vote.cands)),
-    el("p", { class: "lead" }, "Vote on your phone: who got the most wrong and took the longest?"),
+    el("p", { class: "lead" }, "Vote on your phone. Think about wrong answers, slow answers and money lost."),
     el("div", { class: "voteline" }, timerRing("vote"),
       el("div", null, el("p", { class: "lead", id: "voted" }, votedText()), el("div", { class: "votedots" }, ...Array.from({ length: tot }, (_, i) => el("i", { class: i < n ? "on" : "" }))))),
     el("div", { class: "controls" },
@@ -816,41 +956,78 @@ function voteDoneView() {
   return el("div", { class: "center-view" },
     el("div", { class: "eyebrow big" }, "🔍 The results are in"),
     el("div", { class: "bignum" }, `${v.right} of ${v.voters}`),
-    el("p", { class: "lead big" }, `detective${v.voters === 1 ? "" : "s"} spotted the weakest link`),
+    el("p", { class: "lead big" }, `vote${v.voters === 1 ? "" : "s"} went to this round's weakest link`),
     el("p", { class: "lead" }, "📱 Check your phone to see if you were right."),
     bars,
-    el("button", { class: "btn big", text: last ? "🏆 On to the final" : `Round ${G.round + 1} →`, onclick: afterVote }));
+    el("button", { class: "btn big", text: last ? "⚡ On to sudden death" : `Round ${G.round + 1} →`, onclick: afterVote }));
 }
 
-function finalistsView() {
-  const f = G.final;
-  if (!f.shown) return el("div", { class: "center-view" },
-    el("div", { class: "eyebrow big" }, "The final"),
-    el("h2", { class: "huge" }, G.rolling ? "And the finalists are…" : "Who will reach the final?"),
-    plates(active().map(([u, p]) => [u, p]), G.rolling ? "fast" : ""),
-    el("p", { class: "lead" }, "The two players with the best mix of banked money (60%) and correct votes (40%)."),
-    G.rolling ? null : el("button", { class: "btn gold big", text: "🥁 Reveal the finalists", onclick: revealFinalists }));
-  return el("div", { class: "center-view" },
-    el("div", { class: "eyebrow big" }, "Head-to-head"),
-    el("div", { class: "vs" }, el("div", { class: "finalist spot a" }, pname(f.a)), el("div", { class: "vsx" }, "VS"), el("div", { class: "finalist spot b" }, pname(f.b))),
-    el("p", { class: "lead" }, `${G.settings.h2hQuestions} questions each, in turn. Most correct answers wins.`),
-    el("button", { class: "btn gold big", text: "▶ Start the final", onclick: h2hTurn }));
+function matchCard(m, opts = {}) {
+  const res = opts.res, played = res ? res.uids : m.uids;
+  const names = m.start.map(u => {
+    let cls = "mp", tag = null;
+    if (!played.includes(u)) cls += " gone";
+    else if (res) {
+      if (res.out.includes(u)) { cls += " out"; tag = "OUT"; }
+      else if (res.replay && res.replay.includes(u)) { cls += " again"; tag = "AGAIN"; }
+      else { cls += " through"; tag = "THROUGH"; }
+    }
+    const r = res && opts.c && opts.c.res[u];
+    return el("div", { class: cls }, el("span", { class: "mn" }, pname(u)),
+      tag ? el("small", null, tag) : null,
+      r ? el("em", null, r.correct ? `✔ ${r.secs.toFixed(1)} s` : r.v == null ? "no answer" : "✘ wrong") : null);
+  });
+  const parts = [];
+  names.forEach((n, i) => { if (i) parts.push(el("i", { class: "mvs" }, "vs")); parts.push(n); });
+  return el("div", { class: "match" + (m.start.length === 3 ? " trio" : "") + (opts.cls ? " " + opts.cls : ""), style: { "--i": opts.i || 0 } },
+    m.start.length === 3 ? el("div", { class: "mtag" }, "Trio · one goes out") : m.oneOut ? el("div", { class: "mtag" }, "Final match") : null,
+    el("div", { class: "mrow" }, ...parts),
+    opts.note ? el("div", { class: "mnote" }, opts.note) : null);
 }
-function h2hView() {
-  const f = G.final, c = G.cur, n = G.settings.h2hQuestions;
-  const dots = (arr, isTurn) => el("div", { class: "dots" + (isTurn ? " turn" : "") }, ...Array.from({ length: n }, (_, i) => el("span", { class: "dot" + (i < arr.length ? (arr[i] ? " ok" : " bad") : "") })));
-  const turnA = !c.tb && c.uid === f.a, turnB = !c.tb && c.uid === f.b;
-  return el("div", { class: "play h2h" },
+function sdPairsView() {
+  const sd = G.sd, live = sd.matches.filter(m => !m.done);
+  const replaying = live.some(m => m.last);
+  return el("div", { class: "center-view sd" },
+    el("div", { class: "eyebrow big" }, sd.alive.length <= 3 ? "The final" : `Round ${sd.round}`),
+    el("h2", { class: "huge sdtitle" }, "⚡ Sudden death"),
+    el("p", { class: "lead" }, replaying ? "These players go again with a new question." : `${sd.alive.length} players left. Everyone answers the same question at the same time.`),
+    el("div", { class: "matches" + (live.length > 6 ? " many" : "") }, ...live.map((m, i) => matchCard(m, { i, note: m.last ? "🔁 Replay" : null }))),
+    el("p", { class: "muted rules2" }, "Right beats wrong. Both right: the faster player goes through. Both wrong: both are out!",
+      live.some(m => m.oneOut) ? " In a trio or the final match, exactly one player goes out." : ""),
+    el("button", { class: "btn gold big", text: replaying ? "▶ Replay question" : "▶ Ask the question", onclick: sdAsk }));
+}
+function sdPlayView() {
+  const c = G.cur, sd = G.sd;
+  return el("div", { class: "play sdplay" },
     el("div", { class: "centre" },
-      el("div", { class: "score2" },
-        el("div", { class: "fside" + (turnA || c.tb ? " on" : "") }, el("div", { class: "who" }, pname(f.a)), dots(f.ra, turnA)),
-        el("div", { class: "mid" }, el("div", { class: "vsx" }, c.tb ? "⚡ Tie-break" : "VS"), G.phase === "answer" ? timerRing("") : null),
-        el("div", { class: "fside" + (turnB || c.tb ? " on" : "") }, el("div", { class: "who" }, pname(f.b)), dots(f.rb, turnB))),
-      c.tb ? el("p", { class: "lead center" }, "Both answer: the fastest correct answer wins!") : null,
-      questionBlock(c, G.phase === "result"),
-      G.phase === "result" ? resultBanner(c) : null,
+      el("div", { class: "turnhead" },
+        el("div", { class: "nameplate" }, el("span", { class: "who sdwho" }, "⚡ Sudden death"), el("span", { class: "muted upnext" }, `${sd.alive.length} players left · everyone answers now`)),
+        el("div", { class: "row sdcount" }, el("p", { class: "lead", id: "answered" }, answeredText()), G.phase === "answer" ? timerRing("") : null)),
+      questionBlock(c, false),
       controls()),
     G.paused ? el("div", { class: "paused" }, "⏸ Paused") : null);
+}
+function sdResultView() {
+  const c = G.cur, sd = G.sd, rv = sd.reveal || { ids: [], shown: 0 };
+  const q = c.q, done = rv.shown >= rv.ids.length;
+  const pending = sd.matches.filter(m => !m.done);
+  const over = sd.alive.length === 1 && sd.matches.every(m => m.done);
+  let next = null;
+  if (done && !over) {
+    next = sd.void ? el("button", { class: "btn gold big", text: "🔁 Everyone goes again", onclick: sdAsk })
+      : pending.length ? el("button", { class: "btn gold big", text: "🔁 Replay question", onclick: sdAsk })
+      : el("button", { class: "btn gold big", text: sd.alive.length <= 3 ? "⚡ On to the final" : "⚡ Next round", onclick: () => sdPairUp() });
+  }
+  return el("div", { class: "center-view sd" },
+    el("div", { class: "answerline" }, el("span", { class: "eyebrow" }, "The answer"), el("span", { class: "anum o" + q._answer }, q._answer), el("b", null, q._options[q._answer - 1])),
+    el("div", { class: "matches" + (rv.ids.length > 6 ? " many" : "") }, ...rv.ids.map((id, i) => {
+      const m = sd.matches[id], shown = i < rv.shown;
+      return matchCard(m, { i, res: shown ? m.last : null, c, cls: shown ? "shown" + (i === rv.shown - 1 ? " now" : "") : "waiting" });
+    })),
+    done && sd.void ? el("div", { class: "banner bad" }, "Nobody would be left standing, so everyone goes again!") : null,
+    done && pending.length && !sd.void ? el("p", { class: "lead" }, "🔁 Some players go again to settle their match.") : null,
+    done && over ? el("h2", { class: "huge champ" }, "🏆 " + pname(sd.alive[0])) : null,
+    next);
 }
 
 function endView() {
@@ -860,8 +1037,10 @@ function endView() {
     f.winner ? el("div", { class: "trophy" }, "🏆") : null,
     f.winner ? el("div", { class: "eyebrow big" }, "Champion") : null,
     f.winner ? el("h2", { class: "huge champ" }, pname(f.winner)) : el("h2", { class: "huge" }, "🎉 Well played!"),
+    f.winner ? el("p", { class: "lead" }, "Last one standing!") : null,
     el("div", { class: "statrow" },
       stat("The class banked", M(G.pot), "gold"),
+      f.runnerUp ? stat("🥈 Runner-up", pname(f.runnerUp), "names") : null,
       G.topDetectives && G.topDetectives.length ? stat(G.topDetectives.length > 1 ? "🔍 Top detectives" : "🔍 Top detective", G.topDetectives.map(pname).join(" · "), "names") : null),
     el("div", { class: "controls" },
       el("button", { class: "btn ghost", text: "📊 Breakdown", onclick: () => showBreakdown(breakdownData()) }),
@@ -884,7 +1063,7 @@ function editPlayer(uid) {
   modal(el("div", null, el("h2", null, `${p.emoji} Edit player`), field("Name", name),
     el("div", { class: "row gap" },
       el("button", { class: "btn", text: "Save", onclick: () => { const n = clean(name.value, 16) || p.name; p.name = n; G.net.updatePlayer(uid, { name: n }).catch(() => {}); closeModal(); publishState(); render(); } }),
-      el("button", { class: "btn danger", text: "Remove from game", onclick: () => { p.kicked = true; G.net.updatePlayer(uid, { kicked: true }).catch(() => {}); closeModal(); if (G.cur && G.cur.uids.includes(uid) && !G.cur.h2h) skipPlayer(); publishState(); render(); } }),
+      el("button", { class: "btn danger", text: "Remove from game", onclick: () => { p.kicked = true; G.net.updatePlayer(uid, { kicked: true }).catch(() => {}); closeModal(); if (G.cur && G.cur.uids.includes(uid) && !G.cur.sd) skipPlayer(); publishState(); render(); } }),
       el("button", { class: "btn ghost", text: "Cancel", onclick: closeModal }))));
 }
 function playersModal() {
@@ -933,7 +1112,7 @@ function startTick() {
     if (!G) return;
     const t = now(), dt = lastT ? t - lastT : 0; lastT = t;
     const c = G.cur;
-    const running = ["bank", "answer"].includes(G.phase) && !G.paused && !(c && (c.h2h || c.banked || c.locked));
+    const running = ["bank", "answer"].includes(G.phase) && !G.paused && !(c && (c.sd || c.banked || c.locked));
     if (running && G.roundLeft > 0) {
       G.roundLeft = Math.max(0, G.roundLeft - dt);
       if (G.roundLeft <= 0 && !G.timeUp) { G.timeUp = true; W.timeUp(); render(); }
@@ -953,7 +1132,7 @@ function startTick() {
     }
     // The music tightens as the round clock runs down.
     if (G && ["bank", "answer"].includes(G.phase) && G.cur) {
-      if (G.cur.h2h) setIntensity(0.6);
+      if (G.cur.sd) setIntensity(0.6);
       else {
         const prog = G.roundTotal ? Math.max(0, Math.min(1, 1 - G.roundLeft / (G.roundTotal * 1000))) : 0;
         const low = G.phase === "answer" && G.deadline - t < 5500;
@@ -984,7 +1163,9 @@ function updateClocks() {
 }
 
 document.addEventListener("keydown", e => {
-  if (!G || e.target.matches("input,textarea,select") || document.querySelector(".modal-ov")) return;
+  if (e.target.matches("input,textarea,select") || document.querySelector(".modal-ov")) return;
+  if (e.key.toLowerCase() === "f") { toggleFS(); return; }
+  if (!G) return;
   if (e.key.toLowerCase() === "p") togglePause();
   if ((e.key === " " || e.key === "ArrowRight") && G.phase === "result") { e.preventDefault(); afterResult(); }
 });
