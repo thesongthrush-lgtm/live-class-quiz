@@ -12,7 +12,7 @@ function ensure() {
 }
 
 // x,y in 0..1 of the screen; power ~ how many pieces.
-export function confetti({ x = 0.5, y = 0.35, power = 120, spread = 1, fromTop = false } = {}) {
+export function confetti({ x = 0.5, y = 0.35, power = 120, spread = 1, fromTop = false, colours = COLOURS } = {}) {
   ensure();
   const W = canvas.width, H = canvas.height, s = devicePixelRatio;
   for (let i = 0; i < power; i++) {
@@ -21,14 +21,14 @@ export function confetti({ x = 0.5, y = 0.35, power = 120, spread = 1, fromTop =
     parts.push({
       x: fromTop ? Math.random() * W : x * W, y: fromTop ? -20 * s : y * H,
       vx: Math.cos(ang) * v, vy: Math.sin(ang) * v, rot: Math.random() * 6, vr: (Math.random() - 0.5) * 0.3,
-      w: (6 + Math.random() * 8) * s, h: (8 + Math.random() * 10) * s, c: COLOURS[i % COLOURS.length], life: 1, shape: Math.random() < 0.3 ? "circle" : "rect",
+      w: (6 + Math.random() * 8) * s, h: (8 + Math.random() * 10) * s, c: colours[i % colours.length], life: 1, shape: Math.random() < 0.3 ? "circle" : "rect",
     });
   }
   if (!raf) loop();
 }
-export function confettiRain(seconds = 4) {
+export function confettiRain(seconds = 4, colours = COLOURS) {
   const end = performance.now() + seconds * 1000;
-  const iv = setInterval(() => { if (performance.now() > end) return clearInterval(iv); confetti({ power: 14, fromTop: true }); }, 120);
+  const iv = setInterval(() => { if (performance.now() > end) return clearInterval(iv); confetti({ power: 14, fromTop: true, colours }); }, 120);
 }
 function loop() {
   const g = canvas.getContext("2d"), s = devicePixelRatio;

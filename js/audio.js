@@ -1,5 +1,5 @@
 // Music and sound effects, synthesised in the browser (no audio files needed).
-import { storageGet, storageSet } from "./common.js?v=20261123205959";
+import { storageGet, storageSet } from "./common.js?v=20261124112047";
 
 const prefs = Object.assign({ music: true, sfx: true, vol: 0.8 }, storageGet("lq.audio", {}));
 let ctx = null, master, musicBus, sfxBus, noiseBuf;
@@ -81,13 +81,21 @@ const SONGS = {
   question: { bpm: 126, style: "tense",  bars: [[45, [57, 60, 64]], [41, [57, 60, 65]], [43, [55, 59, 62]], [40, [56, 59, 64]]] },
   victory:  { bpm: 122, style: "bright", bars: [[41, [65, 69, 72]], [48, [64, 67, 72]], [50, [62, 65, 69]], [46, [62, 65, 70]]] },
 };
-let song = null, songGain = null, nextTime = 0, step = 0, timer = null, intensity = 0, pendingSong = null, ducked = false;
+let song = null, songGain = null, nextTime = 0, step = 0, timer = null, intensity = 0, pendingSong = null, ducked = false, tempo = 1;
+
+// Hooks for other games (e.g. Weakest Link) to add their own songs and effects.
+export function registerSongs(obj) { Object.assign(SONGS, obj); }
+export function setTempo(m) { tempo = Math.max(0.5, Math.min(2, m || 1)); }
+export function audioKit() {
+  if (!ctx || !ready()) return null;
+  return { ctx, hz, tone, noise, kick, snare, hat, bass, pluck, pad, sfxBus, t: () => ctx.currentTime + 0.01 };
+}
 
 export function playMusic(name) {
   if (!ctx) { pendingSong = name; return; }
   if (song === SONGS[name] && timer) return;
   stopMusic(0.4);
-  song = SONGS[name]; step = 0; intensity = 0;
+  song = SONGS[name]; step = 0; intensity = 0; tempo = 1;
   songGain = ctx.createGain(); songGain.gain.value = ducked ? 0.25 : 1; songGain.connect(musicBus);
   nextTime = ctx.currentTime + 0.12;
   timer = setInterval(schedule, 25);
@@ -103,7 +111,7 @@ export function duckMusic(on) { ducked = on; if (songGain && ctx) songGain.gain.
 
 function schedule() {
   if (!song || !ctx) return;
-  const spb = 60 / song.bpm / 4;
+  const spb = 60 / (song.bpm * tempo) / 4;
   while (nextTime < ctx.currentTime + 0.12) {
     playStep(song, step, nextTime, spb);
     nextTime += spb; step++;
@@ -112,6 +120,7 @@ function schedule() {
 function playStep(sg, n, t, spb) {
   const bus = songGain; if (!bus) return;
   const s = n % 16, [b, chord] = sg.bars[Math.floor(n / 16) % sg.bars.length];
+  if (sg.play) return sg.play({ bus, s, t, spb, n, b, chord, bar: Math.floor(n / 16), intensity, kick, snare, hat, bass, pluck, pad, tone, noise, hz });
   if (sg.style === "bouncy") {
     if (s === 0 || s === 8) kick(bus, t, 0.55);
     if (s === 4 || s === 12) snare(bus, t, 0.14);
