@@ -437,3 +437,8 @@ th{color:var(--muted);font-size:.8rem;text-transform:uppercase;letter-spacing:.0
 .award b{display:block;font-size:clamp(1.2rem,2vw,1.9rem);font-weight:900;line-height:1.15;margin-top:2px}
 .award small{color:var(--muted);font-weight:800;font-size:.95rem}
 .fresh .award{animation:rise .6s cubic-bezier(.2,1.2,.4,1) both;animation-delay:calc(1.6s + var(--i) * .5s)}
+/* bonuses */
+.optbox.gone{opacity:.18;filter:grayscale(1);text-decoration:line-through}
+.bonusused{align-self:center;background:rgba(255,201,74,.18);color:var(--gold);border:2px solid rgba(255,201,74,.6);border-radius:999px;padding:.25em 1em;font-weight:900;font-size:clamp(1rem,1.6vw,1.5rem);animation:slidein .45s cubic-bezier(.2,1,.3,1) both}
+.bonusbtn{background:linear-gradient(180deg,#ffd76a,#e9a91c);color:#2a1a00;font-weight:900;margin:6px 0}
+.bonusbox{border-color:rgba(255,201,74,.6)}

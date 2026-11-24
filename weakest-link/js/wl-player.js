@@ -1,8 +1,8 @@
 // Last One Standing: the student phone screen. Phones only ever show numbers (1, 2, 3),
 // never the question or option text, so translation apps can't help.
-import { el, EMOJIS, randomEmoji, clean, storageGet, storageSet } from "../../js/common.js?v=20261124194826";
-import { randomName as randomNick } from "./wl-names.js?v=20261124194826";
-import { money } from "./wl-rules.js?v=20261124194826";
+import { el, EMOJIS, randomEmoji, clean, storageGet, storageSet } from "../../js/common.js?v=20261124203745";
+import { randomName as randomNick } from "./wl-names.js?v=20261124203745";
+import { money } from "./wl-rules.js?v=20261124203745";
 
 // Circular countdown shared by the TV and the phones.
 export const RING_C = 326.73;
@@ -21,7 +21,9 @@ export function mountPlayer(root, net, opts = {}) {
   let joined = false, editing = false, state = null, fb = {}, self = null, raf = null;
   const sent = new Set();      // keys this phone has already answered / banked / voted
   let pickedVote = null, buzzed = null, nextBuzzed = null;
-  const buzz = () => {};   // phones don't vibrate
+  const buzz = () => {};
+const BONUS = { remove: { icon: "🎯", t: "Remove a wrong answer" }, skip: { icon: "⏭️", t: "Skip this question" } };
+const usedBonus = new Set();   // phones don't vibrate
 
   root.classList.add("wl-phone");
 
@@ -63,7 +65,7 @@ export function mountPlayer(root, net, opts = {}) {
     // The next player's phone flashes while the current turn is played.
     if (["bank", "answer", "result"].includes(state.phase) && !state.sdq && state.next === net.uid && !mine()) {
       if (nextBuzzed !== state.turnKey) { nextBuzzed = state.turnKey; buzz([60, 80, 60, 80, 200]); }
-      return root.append(alertCard("👀", "Get ready", "Your turn is coming.", fiftyNote()));
+      return root.append(alertCard("👀", "Get ready", "Your turn is coming.", bonusNote()));
     }
     const v = {
       lobby: lobbyView, roundIntro: introView, countdown: introView,
@@ -129,7 +131,7 @@ export function mountPlayer(root, net, opts = {}) {
     const c = card(el("h2", { class: "disp" }, "Your turn!"), el("p", { class: "muted" }, "Bank the money before your question?"), timer("gold"),
       el("button", { class: "bankbtn", disabled: state.paused, onclick: () => send(true) }, "🏦 BANK", el("small", null, M(state.chainVal))),
       el("button", { class: "btn ghost big wide", disabled: state.paused, text: "Play on ▶", onclick: () => send(false) }),
-      fiftyNote());
+      bonusNote());
     c.classList.add("yourturn");
     return c;
   }
@@ -143,11 +145,11 @@ export function mountPlayer(root, net, opts = {}) {
   function introView() {
     if (state.first === net.uid) {
       if (nextBuzzed !== "first" + state.round) { nextBuzzed = "first" + state.round; buzz([60, 80, 60, 80, 200]); }
-      return alertCard("🎯", "You're first!", `Round ${state.round} starts with you. Look at the screen 👀`, fiftyNote());
+      return alertCard("🎯", "You're first!", `Round ${state.round} starts with you. Look at the screen 👀`, bonusNote());
     }
     return card(el("div", { class: "eyebrow" }, state.phase === "countdown" ? "Starting now" : "Get ready"), el("h2", { class: "disp" }, `Round ${state.round}`),
       state.firstWho ? el("p", null, `First up: ${state.firstWho.e} ${state.firstWho.n}`) : null,
-      el("p", { class: "muted" }, "Look at the screen 👀"), fiftyNote());
+      el("p", { class: "muted" }, "Look at the screen 👀"), bonusNote());
   }
 
   // ---------- sudden death ----------
@@ -183,7 +185,8 @@ export function mountPlayer(root, net, opts = {}) {
     const send = n => { if (sent.has(k) || state.paused) return; sent.add(k); render(); net.answer(state.turnKey, n).catch(() => { root.append(card(el("p", { class: "muted small" }, "That answer arrived too late."))); }); };
     const m = state.sdq ? myMatch() : null;
     const c = card(el("h2", { class: "disp" }, state.sdq ? "⚡ Be quick!" : "Your question!"), m ? el("p", null, "vs " + opponents(m)) : null, el("p", { class: "muted" }, "Read it on the screen, then tap the number."), timer("", "96px"),
-      fifty ? el("p", { class: "fifty" }, "🎯 50:50: one wrong answer is gone") : null,
+      fifty ? el("p", { class: "fifty" }, "🎯 One wrong answer is gone") : null,
+      bonusButton(),
       el("div", { class: "nums" }, ...[1, 2, 3].map(n => el("button", { class: "num o" + n, disabled: state.paused || n === fifty, text: String(n), onclick: () => send(n) }))));
     c.classList.add("yourturn");
     return c;
@@ -219,7 +222,12 @@ export function mountPlayer(root, net, opts = {}) {
       parts.push(el("p", { class: "pts" }, `Detective points: ${v.total}`));
     }
     if (w) parts.push(el("div", { class: "private" }, el("b", null, "Just for you 🤫"), el("p", null, "This round, the class voted you the weakest link."),
-      el("p", null, w.fifty ? "Don't worry! Next round you get a 🎯 50:50 on your first question: one wrong number disappears." : "Don't worry, everyone has rounds like that!")));
+      el("p", null, "Don't worry, everyone has rounds like that!")));
+    const b = fb.bonus && fb.bonus.round === state.round + 1 ? fb.bonus : null;
+    if (v && b) parts.push(el("div", { class: "private bonusbox" }, el("b", null, "🎁 Bonus for next round"),
+      el("p", null, b.why === "bank" ? "You banked the most money this round!" : "Here's a little help for next round."),
+      el("p", { class: "fifty" }, `${BONUS[b.type].icon} ${BONUS[b.type].t}`),
+      el("p", { class: "muted small" }, "Use it once, on any of your questions next round.")));
     return card(...parts);
   }
 
@@ -236,7 +244,14 @@ export function mountPlayer(root, net, opts = {}) {
       ...(f.awards || []).map(a => el("p", { class: "award-chip" }, a)));
   }
 
-  function fiftyNote() { return fb.fiftyReady ? el("p", { class: "fifty" }, "🎯 You have a 50:50 for your next question.") : null; }
+  function myBonus() { const b = fb.bonus; return b && b.round === state.round && !state.sdq && !usedBonus.has(state.round) ? b : null; }
+  function bonusNote() { const b = myBonus(); return b ? el("p", { class: "fifty" }, `🎁 Bonus this round: ${BONUS[b.type].icon} ${BONUS[b.type].t}`) : null; }
+  function bonusButton() {
+    const b = myBonus(); if (!b || (fb.fifty && fb.fifty.key === state.turnKey)) return null;
+    return el("button", { class: "btn bonusbtn wide", disabled: state.paused, text: `🎁 ${BONUS[b.type].icon} ${BONUS[b.type].t}`, onclick: () => {
+      if (usedBonus.has(state.round)) return; usedBonus.add(state.round); render(); net.useBonus(state.turnKey).catch(() => { usedBonus.delete(state.round); render(); });
+    } });
+  }
 
   // ---------- wiring ----------
   let selfKey = null;

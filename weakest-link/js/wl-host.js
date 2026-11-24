@@ -1,12 +1,12 @@
 // Last One Standing: teacher / TV screen and game engine.
-import { el, clean, makeCode, shuffle, pick, decodeGame, storageGet, storageSet } from "../../js/common.js?v=20261124194826";
-import { playMusic, stopMusic, setIntensity, setTempo, sfx, audioPrefs, setPref, unlock } from "../../js/audio.js?v=20261124194826";
-import { wlSfx as W } from "./wl-audio.js?v=20261124194826";
-import { confetti, confettiRain } from "../../js/fx.js?v=20261124194826";
-import { SimHub, makeBots, hybridHost } from "./wl-net.js?v=20261124194826";
-import { mountPlayer, ringEl, RING_C } from "./wl-player.js?v=20261124194826";
-import * as R from "./wl-rules.js?v=20261124194826";
-import { SAMPLES } from "./wl-samples.js?v=20261124194826";
+import { el, clean, makeCode, shuffle, pick, decodeGame, storageGet, storageSet } from "../../js/common.js?v=20261124203745";
+import { playMusic, stopMusic, setIntensity, setTempo, sfx, audioPrefs, setPref, unlock } from "../../js/audio.js?v=20261124203745";
+import { wlSfx as W } from "./wl-audio.js?v=20261124203745";
+import { confetti, confettiRain } from "../../js/fx.js?v=20261124203745";
+import { SimHub, makeBots, hybridHost } from "./wl-net.js?v=20261124203745";
+import { mountPlayer, ringEl, RING_C } from "./wl-player.js?v=20261124203745";
+import * as R from "./wl-rules.js?v=20261124203745";
+import { SAMPLES } from "./wl-samples.js?v=20261124203745";
 
 const app = document.getElementById("app");
 const CONFIG = window.FIREBASE_CONFIG || null;
@@ -195,7 +195,7 @@ async function startSession({ live, settings, npc }) {
   };
   if (live) {
     try {
-      const { hostNet } = await import("./wl-net.js?v=20261124194826");
+      const { hostNet } = await import("./wl-net.js?v=20261124203745");
       G.net = await hostNet(CONFIG);
       let code; for (let i = 0; i < 6; i++) { code = makeCode(); if (await G.net.codeFree(code)) break; }
       G.code = code; await G.net.createGame(code);
@@ -204,7 +204,7 @@ async function startSession({ live, settings, npc }) {
     const hub = new SimHub(); G.hub = hub;
     if (CONFIG && npc.phones) {
       try {
-        const { hostNet } = await import("./wl-net.js?v=20261124194826");
+        const { hostNet } = await import("./wl-net.js?v=20261124203745");
         const liveNet = await hostNet(CONFIG);
         let code; for (let i = 0; i < 6; i++) { code = makeCode(); if (await liveNet.codeFree(code)) break; }
         G.net = hybridHost(liveNet, hub); G.code = code; G.joinable = true;
@@ -225,7 +225,7 @@ async function startSession({ live, settings, npc }) {
 
 async function resumeSession(saved) {
   try {
-    const { hostNet } = await import("./wl-net.js?v=20261124194826");
+    const { hostNet } = await import("./wl-net.js?v=20261124203745");
     const net = await hostNet(CONFIG);
     if (!(await net.resumeGame(saved.code))) throw new Error("this game is no longer available");
     G = Object.assign(saved, { net, live: true, paused: false });
@@ -251,11 +251,14 @@ function wire() {
       const known = G.players[uid];
       if (!known) {
         G.players[uid] = { name: clean(p.name, 16) || "Player", emoji: clean(p.emoji, 8) || "🙂", kicked: !!p.kicked,
-          credit: 0, lost: 0, bankedOwn: 0, pending: 0, detective: 0, correct: 0, answered: 0, time: 0, wrong: 0, fifty: false, weakestTimes: 0, joinedRound: G.round };
+          credit: 0, lost: 0, bankedOwn: 0, pending: 0, detective: 0, correct: 0, answered: 0, time: 0, wrong: 0, bonus: null, weakestTimes: 0, joinedRound: G.round };
         if (G.phase !== "lobby") G.order.push(uid);
         changed = true;
         if (G.phase === "lobby") sfx.pop();
-      } else if (G.phase === "lobby" && !known.kicked) {
+      } else if (p.bonusUse && p.bonusUse !== known.bonusSeen) {
+        known.bonusSeen = p.bonusUse; useBonus(uid, p.bonusUse);
+      }
+      if (known && G.phase === "lobby" && !known.kicked) {
         const n = clean(p.name, 16) || known.name, e = clean(p.emoji, 8) || known.emoji;
         if (n !== known.name || e !== known.emoji) { known.name = n; known.emoji = e; changed = true; }
       }
@@ -398,14 +401,7 @@ function askQuestion() {
   c.q = drawQuestion(); c.answers = {}; c.res = {}; c.fifty = {}; c.banked = 0; c.pausedMs = 0;
   G.phase = "answer"; setTimer(G.settings.answerSecs);
   c.shownAt = G.deadline - G.duration * 1000;
-  if (!c.sd) for (const u of c.uids) {
-    const p = G.players[u];
-    if (p.fifty) {
-      p.fifty = false;
-      c.fifty[u] = pick([1, 2, 3].filter(n => n !== c.q._answer));
-      G.net.setFeedback(u, { fifty: { key: c.key, remove: c.fifty[u] }, fiftyReady: false }).catch(() => {});
-    }
-  }
+  c.bonusUsed = null;
   const key = c.key;
   unlisten();
   G.unsub = G.net.onAnswers(key, obj => {
@@ -415,6 +411,25 @@ function askQuestion() {
     if (G.cur.uids.every(u => G.cur.answers[u] || !isActive(u))) lockAnswers();
   });
   publishState(); render(); sfx.whoosh();
+}
+
+// Bonuses: won after a vote, usable once during the player's own question in the next round.
+const BONUS = { remove: { icon: "🎯", t: "Remove a wrong answer" }, skip: { icon: "⏭️", t: "Skip this question" } };
+function useBonus(u, k) {
+  const p = G.players[u], c = G.cur;
+  if (!p || !p.bonus || p.bonus.round !== G.round || !c || c.sd || c.key !== k || c.uid !== u || G.phase !== "answer" || c.locked || G.paused || (c.answers && c.answers[u])) return;
+  const type = p.bonus.type; p.bonus = null;
+  G.net.setFeedback(u, { bonus: null }).catch(() => {});
+  if (type === "remove") {
+    c.fifty[u] = pick([1, 2, 3].filter(n => n !== c.q._answer));
+    G.net.setFeedback(u, { fifty: { key: c.key, remove: c.fifty[u] } }).catch(() => {});
+    c.bonusUsed = "remove";
+    publishState();
+  } else {
+    askQuestion();          // fresh question, same chain, fresh answer timer
+    G.cur.bonusUsed = "skip";
+  }
+  W.fifty(); render();
 }
 
 const answeredText = () => `${G.cur.uids.filter(u => G.cur.answers[u]).length} / ${G.cur.uids.length} answered`;
@@ -542,11 +557,23 @@ function closeVote() {
     const ok = !!t && v.weakest.includes(t);
     if (ok) { p.detective++; right++; }
     const fb = { vote: { key: v.key, voted: !!t, correct: ok, total: p.detective * pts } };
-    fb.weakest = v.weakest.includes(u) ? { key: v.key, fifty: !last } : null;
-    if (fb.weakest && !last) fb.fiftyReady = true;
+    fb.weakest = v.weakest.includes(u) ? { key: v.key } : null;
     fbs.push([u, fb]);
   }
-  for (const u of v.weakest) { const p = G.players[u]; if (!p) continue; p.weakestTimes++; if (!last) p.fifty = true; }
+  for (const u of v.weakest) { const p = G.players[u]; if (!p) continue; p.weakestTimes++; }
+  // Bonuses for next round: top banker(s) this round, and a catch-up for the lowest performer(s).
+  for (const [, p] of Object.entries(G.players)) p.bonus = null;
+  if (!last) {
+    const stay = active().map(([u]) => u), bk = u => (G.roundStats[u] || {}).banked || 0, pf = u => roundPerf[u] || 0;
+    const topB = Math.max(0, ...stay.map(bk));
+    const tops = topB > 0 ? stay.filter(u => bk(u) === topB) : [];
+    const rest = stay.filter(u => !tops.includes(u));
+    const lowP = rest.length && stay.length > 1 ? Math.min(...rest.map(pf)) : null;
+    const lows = lowP === null ? [] : rest.filter(u => pf(u) === lowP);
+    const give = (u, why) => { const b = { type: pick(["remove", "skip"]), round: G.round + 1, why }; G.players[u].bonus = b; const f = fbs.find(x => x[0] === u); if (f) f[1].bonus = b; };
+    tops.forEach(u => give(u, "bank")); lows.forEach(u => give(u, "catch"));
+  }
+  for (const [, fb] of fbs) if (!("bonus" in fb)) fb.bonus = null;
   v.right = right; v.voters = Object.keys(v.votes).length;
   G.phase = "voteDone"; G.paused = false;
   stopMusic(0.2);
@@ -862,6 +889,7 @@ function playView() {
       el("div", { class: "turnhead" },
         el("div", { class: "nameplate" + (newTurn ? " newturn" : "") }, el("span", { class: "who" }, `${p.emoji} ${p.name}`), nx && G.phase !== "result" ? el("span", { class: "muted upnext" }, "Up next: " + pname(nx.uid)) : null),
         ring ? timerRing(G.phase === "bank" ? "gold" : "") : null),
+      c && c.bonusUsed && G.phase === "answer" ? el("div", { class: "bonusused" }, `🎁 ${BONUS[c.bonusUsed].icon} ${BONUS[c.bonusUsed].t}!`) : null,
       body,
       G.phase === "result" ? resultBanner(c) : null,
       controls()),
@@ -881,7 +909,8 @@ function questionBlock(c, reveal) {
     q.sub ? el("div", { class: "qsub" }, q.sub) : null,
     el("div", { class: "opts" + (asking ? " asking" : "") + (picks.length ? " locked" : "") }, ...q._options.map((o, i) => {
       const n = i + 1, picked = reveal && Object.values(c.res).some(r => r.v === n);
-      return el("div", { class: "optbox o" + n + (picks.includes(n) ? " pick" : "") + (reveal && n === q._answer ? " right" : "") + (reveal && picked && n !== q._answer ? " wrong" : "") + (reveal && n !== q._answer && !picked ? " dim" : "") },
+      const gone = !reveal && c.fifty && c.fifty[c.uid] === n && !c.sd;
+      return el("div", { class: "optbox o" + n + (gone ? " gone" : "") + (picks.includes(n) ? " pick" : "") + (reveal && n === q._answer ? " right" : "") + (reveal && picked && n !== q._answer ? " wrong" : "") + (reveal && n !== q._answer && !picked ? " dim" : "") },
         el("span", { class: "num" }, n), el("span", null, o));
     })));
 }

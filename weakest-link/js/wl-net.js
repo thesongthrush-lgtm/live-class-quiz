@@ -2,8 +2,8 @@
 // in-browser stand-in for test mode, and a hybrid where real phones and NPCs play together.
 // Live games live under wl/{code} in the shared Firebase project.
 
-import { pick, randomEmoji } from "../../js/common.js?v=20261124194826";
-import { nameMaker } from "./wl-names.js?v=20261124194826";
+import { pick, randomEmoji } from "../../js/common.js?v=20261124203745";
+import { nameMaker } from "./wl-names.js?v=20261124203745";
 
 const SDK = "https://www.gstatic.com/firebasejs/10.12.2/";
 let fb = null;
@@ -62,6 +62,7 @@ export async function playerNet(config, code) {
     bank: (k, yes) => f.set(f.ref(f.db, p(`bank/${k}/${f.uid}`)), !!yes),
     answer: (k, v) => f.set(f.ref(f.db, p(`answers/${k}/${f.uid}`)), { v, t: f.serverTimestamp() }),
     vote: (k, target) => f.set(f.ref(f.db, p(`votes/${k}/${f.uid}`)), target),
+    useBonus: k => f.update(f.ref(f.db, p(`players/${f.uid}`)), { bonusUse: k }),
   };
 }
 
@@ -101,6 +102,7 @@ export class SimHub {
       onSelf: fn => h._sub("self", () => structuredClone(h.players[uid] || null), fn),
       async bank(k, yes) { if (!open("bank", k)) throw new Error("closed"); put("bank", k, !!yes, "bank"); },
       async answer(k, v) { if (!open("answer", k)) throw new Error("closed"); put("answers", k, { v, t: h.now() }, "answers"); },
+      async useBonus(k) { if (!h.players[uid]) throw new Error("no player"); h.players[uid].bonusUse = k; h._emit("players"); },
       async vote(k, target) { const s = st(); if (s.phase !== "vote" || s.voteKey !== k || target === uid || !(s.cands && s.cands[target])) throw new Error("closed"); put("votes", k, target, "votes"); },
     };
   }
@@ -162,6 +164,7 @@ export class Bot {
     } else if (s.phase === "answer" && mine) {
       this.done.add(key);
       if (Math.random() < 0.03) return; // occasionally freezes
+      if (Math.random() < 0.5) setTimeout(() => this.api.useBonus(s.turnKey).catch(() => {}), 500);
       const dur = s.deadline - this.api.now();
       const speed = this.skillName === "strong" ? 0.25 : this.skillName === "weak" ? 0.6 : 0.4;
       const delay = Math.max(1200, dur * speed * (0.5 + Math.random() * 0.8));
