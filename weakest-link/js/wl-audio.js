@@ -1,6 +1,6 @@
 // Last One Standing music and sound effects, synthesised in the browser.
 // Builds on the shared audio engine; nothing here changes Rapidiom's sounds.
-import { registerSongs, audioKit, sfx as base } from "../../js/audio.js?v=20261124190320";
+import { registerSongs, audioKit, sfx as base } from "../../js/audio.js?v=20261124194826";
 
 const rnd = (a, b) => a + Math.random() * (b - a);
 

@@ -2,8 +2,8 @@
 // in-browser stand-in for test mode, and a hybrid where real phones and NPCs play together.
 // Live games live under wl/{code} in the shared Firebase project.
 
-import { pick, randomEmoji } from "../../js/common.js?v=20261124190320";
-import { nameMaker } from "./wl-names.js?v=20261124190320";
+import { pick, randomEmoji } from "../../js/common.js?v=20261124194826";
+import { nameMaker } from "./wl-names.js?v=20261124194826";
 
 const SDK = "https://www.gstatic.com/firebasejs/10.12.2/";
 let fb = null;

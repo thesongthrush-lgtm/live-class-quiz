@@ -1,12 +1,12 @@
 // Last One Standing: teacher / TV screen and game engine.
-import { el, clean, makeCode, shuffle, pick, decodeGame, storageGet, storageSet } from "../../js/common.js?v=20261124190320";
-import { playMusic, stopMusic, setIntensity, setTempo, sfx, audioPrefs, setPref, unlock } from "../../js/audio.js?v=20261124190320";
-import { wlSfx as W } from "./wl-audio.js?v=20261124190320";
-import { confetti, confettiRain } from "../../js/fx.js?v=20261124190320";
-import { SimHub, makeBots, hybridHost } from "./wl-net.js?v=20261124190320";
-import { mountPlayer, ringEl, RING_C } from "./wl-player.js?v=20261124190320";
-import * as R from "./wl-rules.js?v=20261124190320";
-import { SAMPLES } from "./wl-samples.js?v=20261124190320";
+import { el, clean, makeCode, shuffle, pick, decodeGame, storageGet, storageSet } from "../../js/common.js?v=20261124194826";
+import { playMusic, stopMusic, setIntensity, setTempo, sfx, audioPrefs, setPref, unlock } from "../../js/audio.js?v=20261124194826";
+import { wlSfx as W } from "./wl-audio.js?v=20261124194826";
+import { confetti, confettiRain } from "../../js/fx.js?v=20261124194826";
+import { SimHub, makeBots, hybridHost } from "./wl-net.js?v=20261124194826";
+import { mountPlayer, ringEl, RING_C } from "./wl-player.js?v=20261124194826";
+import * as R from "./wl-rules.js?v=20261124194826";
+import { SAMPLES } from "./wl-samples.js?v=20261124194826";
 
 const app = document.getElementById("app");
 const CONFIG = window.FIREBASE_CONFIG || null;
@@ -195,7 +195,7 @@ async function startSession({ live, settings, npc }) {
   };
   if (live) {
     try {
-      const { hostNet } = await import("./wl-net.js?v=20261124190320");
+      const { hostNet } = await import("./wl-net.js?v=20261124194826");
       G.net = await hostNet(CONFIG);
       let code; for (let i = 0; i < 6; i++) { code = makeCode(); if (await G.net.codeFree(code)) break; }
       G.code = code; await G.net.createGame(code);
@@ -204,7 +204,7 @@ async function startSession({ live, settings, npc }) {
     const hub = new SimHub(); G.hub = hub;
     if (CONFIG && npc.phones) {
       try {
-        const { hostNet } = await import("./wl-net.js?v=20261124190320");
+        const { hostNet } = await import("./wl-net.js?v=20261124194826");
         const liveNet = await hostNet(CONFIG);
         let code; for (let i = 0; i < 6; i++) { code = makeCode(); if (await liveNet.codeFree(code)) break; }
         G.net = hybridHost(liveNet, hub); G.code = code; G.joinable = true;
@@ -225,7 +225,7 @@ async function startSession({ live, settings, npc }) {
 
 async function resumeSession(saved) {
   try {
-    const { hostNet } = await import("./wl-net.js?v=20261124190320");
+    const { hostNet } = await import("./wl-net.js?v=20261124194826");
     const net = await hostNet(CONFIG);
     if (!(await net.resumeGame(saved.code))) throw new Error("this game is no longer available");
     G = Object.assign(saved, { net, live: true, paused: false });
@@ -251,7 +251,7 @@ function wire() {
       const known = G.players[uid];
       if (!known) {
         G.players[uid] = { name: clean(p.name, 16) || "Player", emoji: clean(p.emoji, 8) || "🙂", kicked: !!p.kicked,
-          credit: 0, lost: 0, pending: 0, detective: 0, correct: 0, answered: 0, time: 0, wrong: 0, fifty: false, weakestTimes: 0, joinedRound: G.round };
+          credit: 0, lost: 0, bankedOwn: 0, pending: 0, detective: 0, correct: 0, answered: 0, time: 0, wrong: 0, fifty: false, weakestTimes: 0, joinedRound: G.round };
         if (G.phase !== "lobby") G.order.push(uid);
         changed = true;
         if (G.phase === "lobby") sfx.pop();
@@ -368,6 +368,7 @@ function bankDecision(yes) {
     G.cur.bankedFrom = G.chainIdx;
     const amount = doBank();
     G.cur.banked = amount;
+    if (G.players[G.cur.uid]) G.players[G.cur.uid].bankedOwn += amount;
     flash(); confetti({ x: 0.1, y: 0.8, power: 70, spread: 0.6, colours: GOLD });
     publishState(); render();
     const key = G.cur.key;
@@ -456,7 +457,7 @@ function resolveTurn() {
       c.gain = R.chainValue(chain(), G.chainIdx);
       c.justLit = G.chainIdx;
       W.correct(G.chainIdx);
-      if (G.chainIdx === chain().length - 1) { c.bankedFrom = G.chainIdx; c.maxed = doBank(); G.roundMaxed = true; flash(); confetti({ power: 160, colours: GOLD }); }
+      if (G.chainIdx === chain().length - 1) { c.bankedFrom = G.chainIdx; c.maxed = doBank(); G.players[c.uid].bankedOwn += c.maxed; G.roundMaxed = true; flash(); confetti({ power: 160, colours: GOLD }); }
     } else {
       c.lost = R.chainValue(chain(), G.chainIdx);
       c.brokeFrom = G.chainIdx;
@@ -661,7 +662,17 @@ function finish(winner) {
   const pts = G.settings.detectivePoints;
   const maxD = Math.max(0, ...active().map(([, p]) => p.detective));
   G.topDetectives = maxD ? active().filter(([, p]) => p.detective === maxD).map(([u]) => u) : [];
-  for (const [u, p] of active()) G.net.setFeedback(u, { final: { champ: u === winner, finalist: places[u] === 2, place: places[u] || null, credit: p.credit, detective: p.detective * pts, pot: G.pot, topDetective: G.topDetectives.includes(u), cur: G.settings.currency } }).catch(() => {});
+  // Awards (ties share): most correct votes, most banked on their own BANK press, best banked-minus-lost.
+  const best = (f, min) => { const v = Math.max(...active().map(([, p]) => f(p))); return v > min ? active().filter(([, p]) => f(p) === v).map(([u]) => u) : []; };
+  const strongest = (() => { const v = Math.max(...active().map(([, p]) => R.perf(p))); const top = active().filter(([, p]) => R.perf(p) === v); if (v <= 0 && !top.some(([, p]) => p.correct)) return []; const c = Math.max(...top.map(([, p]) => p.correct)); return top.filter(([, p]) => p.correct === c).map(([u]) => u); })();
+  G.awards = [
+    { k: "detective", icon: "🔍", t: "Best detective", who: G.topDetectives, note: maxD ? `${maxD} correct vote${maxD === 1 ? "" : "s"}` : "" },
+    { k: "banker", icon: "🏦", t: "Biggest banker", who: best(p => p.bankedOwn || 0, 0), note: "" },
+    { k: "strongest", icon: "💪", t: "Strongest link", who: strongest, note: "" },
+  ].filter(a => a.who.length);
+  const bk = G.awards.find(a => a.k === "banker"); if (bk) bk.note = M(G.players[bk.who[0]].bankedOwn) + " banked";
+  const sg = G.awards.find(a => a.k === "strongest"); if (sg) sg.note = "Best all-round game";
+  for (const [u, p] of active()) G.net.setFeedback(u, { final: { champ: u === winner, finalist: places[u] === 2, place: places[u] || null, credit: p.credit, own: p.bankedOwn || 0, detective: p.detective * pts, pot: G.pot, awards: G.awards.filter(a => a.who.includes(u)).map(a => a.icon + " " + a.t), cur: G.settings.currency } }).catch(() => {});
   saveResults();
   publishState(); render();
 }
@@ -676,6 +687,17 @@ function togglePause() {
   publishState(); render();
 }
 function addTurnTime() { if (!["bank", "answer", "vote"].includes(G.phase)) return; if (G.paused) G.remaining += 10000; else G.deadline += 10000; G.duration += 10; publishState(); render(); }
+// The round clock hit zero: stop at once. A turn in progress is cut off (unless its answer
+// is already locked in), and that player goes first next round so they don't lose their turn.
+function timeUpNow() {
+  const c = G.cur;
+  if (c && c.locked) return;   // revealed, then the round ends
+  if (c && !c.sd && ["bank", "answer"].includes(G.phase)) {
+    const i = G.order.indexOf(c.uid); if (i >= 0) G.turnPtr = i;
+  }
+  unlisten(); G.cur = null;
+  endRound("time");
+}
 function addRoundTime() { G.roundLeft += 30000; G.roundTotal += 30; if (G.timeUp && G.roundLeft > 0) G.timeUp = false; render(); }
 function newQuestion() { if (G.phase !== "answer" || G.cur.locked) return; unlisten(); askQuestion(); }
 function skipPlayer() { if (!["bank", "answer"].includes(G.phase) || G.cur.sd) return; unlisten(); G.cur = null; nextTurn(); }
@@ -845,7 +867,7 @@ function playView() {
       controls()),
     el("aside", { class: "side" },
       el("div", { class: "clockpanel" }, el("div", { class: "eyebrow" }, "Round clock"), el("div", { class: "roundclock js-round" }, "–:––")),
-      G.timeUp ? el("div", { class: "timeup" }, "⏰ Time's up! This is the last question.") : null,
+      G.timeUp ? el("div", { class: "timeup" }, "⏰ Time's up!") : null,
       el("div", { class: "eyebrow" }, `Round ${G.round} of ${G.settings.rounds}`)),
     G.paused ? el("div", { class: "paused" }, "⏸ Paused") : null);
 }
@@ -1041,7 +1063,9 @@ function endView() {
     el("div", { class: "statrow" },
       stat("The class banked", M(G.pot), "gold"),
       f.runnerUp ? stat("🥈 Runner-up", pname(f.runnerUp), "names") : null,
-      G.topDetectives && G.topDetectives.length ? stat(G.topDetectives.length > 1 ? "🔍 Top detectives" : "🔍 Top detective", G.topDetectives.map(pname).join(" · "), "names") : null),
+    ),
+    G.awards && G.awards.length ? el("div", { class: "awards" }, ...G.awards.map((a, i) => el("div", { class: "award", style: { "--i": i } },
+      el("div", { class: "aicon" }, a.icon), el("div", { class: "eyebrow" }, a.t), el("b", null, a.who.map(pname).join(" · ")), a.note ? el("small", null, a.note) : null))) : null,
     el("div", { class: "controls" },
       el("button", { class: "btn ghost", text: "📊 Breakdown", onclick: () => showBreakdown(breakdownData()) }),
       el("button", { class: "btn ghost", text: "🔁 Play again", onclick: () => { const g = G.game; endGame(true); pending = g; renderSetup(); } }),
@@ -1115,7 +1139,7 @@ function startTick() {
     const running = ["bank", "answer"].includes(G.phase) && !G.paused && !(c && (c.sd || c.banked || c.locked));
     if (running && G.roundLeft > 0) {
       G.roundLeft = Math.max(0, G.roundLeft - dt);
-      if (G.roundLeft <= 0 && !G.timeUp) { G.timeUp = true; W.timeUp(); render(); }
+      if (G.roundLeft <= 0 && !G.timeUp) { G.timeUp = true; W.timeUp(); timeUpNow(); return; }
     }
     if (["bank", "answer", "vote"].includes(G.phase) && !G.paused && !(c && (c.banked || c.locked))) {
       const left = G.deadline - t, secs = Math.ceil(left / 1000);

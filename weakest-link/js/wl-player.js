@@ -1,8 +1,8 @@
 // Last One Standing: the student phone screen. Phones only ever show numbers (1, 2, 3),
 // never the question or option text, so translation apps can't help.
-import { el, EMOJIS, randomEmoji, clean, storageGet, storageSet } from "../../js/common.js?v=20261124190320";
-import { randomName as randomNick } from "./wl-names.js?v=20261124190320";
-import { money } from "./wl-rules.js?v=20261124190320";
+import { el, EMOJIS, randomEmoji, clean, storageGet, storageSet } from "../../js/common.js?v=20261124194826";
+import { randomName as randomNick } from "./wl-names.js?v=20261124194826";
+import { money } from "./wl-rules.js?v=20261124194826";
 
 // Circular countdown shared by the TV and the phones.
 export const RING_C = 326.73;
@@ -21,7 +21,7 @@ export function mountPlayer(root, net, opts = {}) {
   let joined = false, editing = false, state = null, fb = {}, self = null, raf = null;
   const sent = new Set();      // keys this phone has already answered / banked / voted
   let pickedVote = null, buzzed = null, nextBuzzed = null;
-  const buzz = p => { try { navigator.vibrate && navigator.vibrate(p); } catch {} };
+  const buzz = () => {};   // phones don't vibrate
 
   root.classList.add("wl-phone");
 
@@ -63,7 +63,7 @@ export function mountPlayer(root, net, opts = {}) {
     // The next player's phone flashes while the current turn is played.
     if (["bank", "answer", "result"].includes(state.phase) && !state.sdq && state.next === net.uid && !mine()) {
       if (nextBuzzed !== state.turnKey) { nextBuzzed = state.turnKey; buzz([60, 80, 60, 80, 200]); }
-      return root.append(alertCard("👀", "You're next!", "Get ready: your turn is coming up.", fiftyNote()));
+      return root.append(alertCard("👀", "Get ready", "Your turn is coming.", fiftyNote()));
     }
     const v = {
       lobby: lobbyView, roundIntro: introView, countdown: introView,
@@ -232,8 +232,8 @@ export function mountPlayer(root, net, opts = {}) {
       el("h2", { class: "disp" }, f.champ ? "Last one standing!" : f.finalist ? "Brilliant final!" : "Thanks for playing!"),
       f.place && !f.champ ? el("p", null, `You finished ${ord(f.place)}`) : null,
       el("p", null, `The class banked ${m(f.pot)}`),
-      el("p", { class: "muted" }, `Your banked money: ${m(f.credit)} · Detective points: ${f.detective}`),
-      f.topDetective ? el("p", { class: "award-chip" }, "🔍 Top detective!") : null);
+      el("p", { class: "muted" }, `You banked: ${m(f.own != null ? f.own : f.credit)} · Detective points: ${f.detective}`),
+      ...(f.awards || []).map(a => el("p", { class: "award-chip" }, a)));
   }
 
   function fiftyNote() { return fb.fiftyReady ? el("p", { class: "fifty" }, "🎯 You have a 50:50 for your next question.") : null; }
